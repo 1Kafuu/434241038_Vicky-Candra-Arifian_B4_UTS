@@ -48,3 +48,14 @@ app.*.map.json
 .claude/
 CLAUDE.md
 AUTH_MODULE.md
+
+# code-review-graph
+.code-review-graph/
+
+# Backend (Node.js)
+backend/.env
+backend/node_modules/
+backend/dist/
+backend/*.env
+
+PROJECT_DOCUMENTATION.md
