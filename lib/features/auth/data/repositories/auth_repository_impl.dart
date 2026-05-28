@@ -1,39 +1,52 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 import '../../domain/entities/user_entity.dart';
-import '../../domain/entities/role_enum.dart';
 import '../../domain/repositories/auth_repository.dart';
-import '../datasources/auth_local_datasource.dart';
+import '../datasources/auth_remote_datasource.dart';
+
+const String _tokenKey = 'auth_token';
 
 class AuthRepositoryImpl implements AuthRepository {
-  final AuthLocalDataSource localDataSource;
+  final AuthRemoteDataSource remoteDataSource;
+  final SharedPreferences sharedPreferences;
 
-  AuthRepositoryImpl({required this.localDataSource});
+  AuthRepositoryImpl({
+    required this.remoteDataSource,
+    required this.sharedPreferences,
+  });
+
+  // ─── Save / Get / Clear token ─────────────────────────────────────────────
+
+  Future<void> _saveToken(String token) async {
+    await sharedPreferences.setString(_tokenKey, token);
+  }
+
+  String? _getToken() {
+    return sharedPreferences.getString(_tokenKey);
+  }
+
+  Future<void> _clearToken() async {
+    await sharedPreferences.remove(_tokenKey);
+  }
+
+  // ─── Login ────────────────────────────────────────────────────────────────
 
   @override
   Future<UserEntity?> login(String email, String password) async {
-    // SIMULASI: Cek login sesuai kriteria V5.0 (hanya mock admin/user)
-    if (email == "admin@mail.com" && password == "admin123") {
-      final user = UserModel(
-        id: "USR-001",
-        name: "Administrator",
-        email: email,
-        role: UserRole.admin,
-      );
-      await localDataSource.saveUser(user.toJson());
-      return user;
-    } else if (email == "user@mail.com" && password == "user123") {
-      final user = UserModel(
-        id: "USR-002",
-        name: "Kafuu",
-        email: email,
-        role: UserRole.user,
-      );
-      await localDataSource.saveUser(user.toJson());
-      return user;
-    }
+    try {
+      final data = await remoteDataSource.login(email, password);
 
-    return null;
+      // Save token locally
+      await _saveToken(data['token']);
+
+      // Parse and return user
+      return UserModel.fromJson(data['user']);
+    } catch (e) {
+      return null;
+    }
   }
+
+  // ─── Register ─────────────────────────────────────────────────────────────
 
   @override
   Future<UserEntity?> register({
@@ -41,36 +54,52 @@ class AuthRepositoryImpl implements AuthRepository {
     required String email,
     required String password,
   }) async {
-    // SIMULASI: Proses pendaftaran user baru
-    // Di dunia nyata, ini akan memanggil API POST /register
     try {
-      final newUser = UserModel(
-        id: "USR-${DateTime.now().millisecondsSinceEpoch}", // Generate ID unik sementara
+      final data = await remoteDataSource.register(
         name: name,
         email: email,
-        role: UserRole.user, // Default role saat mendaftar adalah user
+        password: password,
       );
 
-      // Simpan session secara lokal (Auto-login setelah register)
-      await localDataSource.saveUser(newUser.toJson());
+      // Save token if returned (auto-login after register)
+      if (data['token'] != null) {
+        await _saveToken(data['token']);
+      }
 
-      return newUser;
+      return UserModel.fromJson(data['user']);
     } catch (e) {
       return null;
     }
   }
 
+  // ─── Get Current User ─────────────────────────────────────────────────────
+
   @override
   Future<UserEntity?> getCurrentUser() async {
-    final userMap = await localDataSource.getUser();
-    if (userMap != null) {
+    try {
+      final token = _getToken();
+      if (token == null) return null;
+
+      final userMap = await remoteDataSource.getCurrentUser(token);
       return UserModel.fromJson(userMap);
+    } catch (e) {
+      return null;
     }
-    return null;
   }
+
+  // ─── Logout ───────────────────────────────────────────────────────────────
 
   @override
   Future<void> logout() async {
-    await localDataSource.clearUser();
+    try {
+      final token = _getToken();
+      if (token != null) {
+        await remoteDataSource.logout(token);
+      }
+    } catch (_) {
+      // Even if API call fails, clear local token
+    } finally {
+      await _clearToken();
+    }
   }
 }
