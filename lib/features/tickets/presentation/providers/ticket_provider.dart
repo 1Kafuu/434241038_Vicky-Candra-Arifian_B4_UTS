@@ -1,10 +1,14 @@
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import '../../domain/entities/ticket_entity.dart';
 import '../../domain/entities/ticket_enum.dart';
 import '../../domain/entities/comment_entity.dart';
 import '../../domain/repositories/ticket_repository.dart';
 import '../../data/repositories/ticket_repository_impl.dart';
 import '../../data/datasources/ticket_local_data_source.dart';
+import '../../data/datasources/ticket_remote_datasource.dart';
+import '../../data/models/ticket_model.dart';
 import '../../../../core/providers/shared_prefs_provider.dart';
 import '../../../../core/services/notification_service.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -15,13 +19,25 @@ final ticketLocalDataSourceProvider = Provider<TicketLocalDataSource>((ref) {
   return TicketLocalDataSourceImpl(sharedPreferences: sharedPrefs);
 });
 
-// 3. Provider untuk Repository
-final ticketRepositoryProvider = Provider<TicketRepository>((ref) {
-  final localDataSource = ref.watch(ticketLocalDataSourceProvider);
-  return TicketRepositoryImpl(localDataSource: localDataSource);
+// 3. Provider untuk Remote Data Source
+final ticketRemoteDataSourceProvider = Provider<TicketRemoteDataSource>((ref) {
+  return TicketRemoteDataSourceImpl(client: http.Client());
 });
 
-// 4. Notifier untuk List Tiket
+// 4. Provider untuk Repository (menggunakan remote + local + sharedPrefs)
+final ticketRepositoryProvider = Provider<TicketRepository>((ref) {
+  final localDataSource = ref.watch(ticketLocalDataSourceProvider);
+  final remoteDataSource = ref.watch(ticketRemoteDataSourceProvider);
+  final sharedPrefs = ref.watch(sharedPreferencesProvider);
+  
+  return TicketRepositoryImpl(
+    remoteDataSource: remoteDataSource,
+    localDataSource: localDataSource,
+    sharedPreferences: sharedPrefs,
+  );
+});
+
+// 5. Notifier untuk List Tiket
 class TicketListNotifier extends AsyncNotifier<List<TicketEntity>> {
   @override
   Future<List<TicketEntity>> build() async {
@@ -39,7 +55,33 @@ class TicketListNotifier extends AsyncNotifier<List<TicketEntity>> {
   Future<void> addTicket(TicketEntity ticket) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
-      await ref.read(ticketRepositoryProvider).createTicket(ticket);
+      // 1. Create ticket first
+      final createdTicket = await ref.read(ticketRepositoryProvider).createTicket(ticket);
+
+      // 2. If online and has attachments, upload each file
+      if (ticket.attachments.isNotEmpty && createdTicket != null) {
+        final repo = ref.read(ticketRepositoryProvider);
+        if (repo is TicketRepositoryImpl && repo.isOnline) {
+          final remote = ref.read(ticketRemoteDataSourceProvider);
+          final token = repo.token!;
+
+          // Upload each attachment
+          for (final path in ticket.attachments) {
+            final file = File(path);
+            if (await file.exists()) {
+              try {
+                final bytes = await file.readAsBytes();
+                final filename = path.split('/').last;
+                await remote.uploadAttachment(token, createdTicket.id, bytes, filename);
+              } catch (e) {
+                // Continue if one attachment fails
+                print('Failed to upload attachment: $e');
+              }
+            }
+          }
+        }
+      }
+
       return ref.read(ticketRepositoryProvider).getTickets();
     });
   }
@@ -49,16 +91,33 @@ class TicketListNotifier extends AsyncNotifier<List<TicketEntity>> {
     required CommentEntity comment,
     String? parentCommentId,
   }) async {
-    // Kita tidak gunakan AsyncValue.guard sementara untuk memastikan error terlihat jelas
     try {
       await ref
           .read(ticketRepositoryProvider)
           .addComment(ticketId, comment, parentCommentId: parentCommentId);
 
-      // Ambil data terbaru
-      final updatedTickets = await ref
-          .read(ticketRepositoryProvider)
-          .getTickets();
+      // Ambil comments terbaru
+      final comments = await ref.read(ticketRepositoryProvider).getComments(ticketId);
+
+      // Update ticket di list dengan comments baru
+      final currentTickets = state.whenOrNull(data: (data) => data) ?? [];
+      final updatedTickets = currentTickets.map((t) {
+        if (t.id == ticketId) {
+          return TicketModel(
+            id: t.id,
+            title: t.title,
+            description: t.description,
+            status: t.status,
+            priority: t.priority,
+            createdAt: t.createdAt,
+            userId: t.userId,
+            attachments: t.attachments,
+            comments: comments,
+          );
+        }
+        return t;
+      }).toList();
+
       state = AsyncValue.data(updatedTickets);
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);
@@ -66,30 +125,28 @@ class TicketListNotifier extends AsyncNotifier<List<TicketEntity>> {
   }
 
   Future<void> updateStatus(String ticketId, TicketStatus newStatus) async {
-  try {
-    // 1. UPDATE DATA DI REPOSITORY (Wajib agar tersimpan di Local Storage)
-    // Ini merujuk pada fungsi yang baru saja Anda tambahkan di repository
-    final user = ref.read(currentUserProvider);
-    await ref.read(ticketRepositoryProvider).updateTicketStatus(ticketId, newStatus, user?.name ?? "Admin");
+    try {
+      final user = ref.read(currentUserProvider);
+      await ref.read(ticketRepositoryProvider).updateTicketStatus(
+        ticketId, 
+        newStatus, 
+        user?.name ?? "Admin"
+      );
 
-    // 2. REFRESH STATE (Wajib agar UI Dashboard & Detail berubah secara reaktif)
-    // Kita ambil data terbaru dari local storage lalu masukkan ke state
-    final updatedTickets = await ref.read(ticketRepositoryProvider).getTickets();
-    state = AsyncValue.data(updatedTickets);
+      // Ambil data terbaru
+      final updatedTickets = await ref.read(ticketRepositoryProvider).getTickets();
+      state = AsyncValue.data(updatedTickets);
 
-    // 3. TAMPILKAN NOTIFIKASI (FR-007)
-    // Dipanggil SETELAH data berhasil disimpan
-    await NotificationService.showNotification(
-      id: ticketId.hashCode,
-      title: "Update Tiket #${ticketId.toUpperCase()}",
-      body: "Status tiket Anda kini: ${newStatus.label}",
-    );
-    
-  } catch (e, stack) {
-    // Jika terjadi error (misal: ID tidak ditemukan), state akan menangkapnya
-    state = AsyncValue.error(e, stack);
+      // Tampilkan notifikasi
+      await NotificationService.showNotification(
+        id: ticketId.hashCode,
+        title: "Update Tiket #${ticketId.toUpperCase()}",
+        body: "Status tiket Anda kini: ${newStatus.label}",
+      );
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+    }
   }
-}
 }
 
 final ticketListProvider =
@@ -103,7 +160,7 @@ final ticketStatsProvider = Provider<Map<String, int>>((ref) {
   return ticketsAsync.maybeWhen(
     data: (tickets) {
       return {
-        'total': tickets.length, // Total tiket [cite: 87]
+        'total': tickets.length,
         'open': tickets.where((t) => t.status == TicketStatus.open).length,
         'inProgress': tickets
             .where((t) => t.status == TicketStatus.inProgress)
@@ -114,7 +171,6 @@ final ticketStatsProvider = Provider<Map<String, int>>((ref) {
         'closed': tickets.where((t) => t.status == TicketStatus.closed).length,
       };
     },
-    // Default value saat loading atau error
     orElse: () => {
       'total': 0,
       'open': 0,

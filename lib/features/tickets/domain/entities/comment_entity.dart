@@ -4,6 +4,7 @@ class CommentEntity {
   final String senderId;
   final String message;
   final DateTime timestamp;
+  final String? parentCommentId;
   final List<CommentEntity> replies; // Untuk fitur balas komentar
 
   const CommentEntity({
@@ -12,6 +13,7 @@ class CommentEntity {
     required this.senderId,
     required this.message,
     required this.timestamp,
+    this.parentCommentId,
     this.replies = const [],
   });
 }
