@@ -3,11 +3,23 @@ import 'package:flutter/material.dart';
 import '../../domain/entities/ticket_entity.dart';
 import '../../domain/entities/ticket_enum.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/constants/api_constants.dart';
 
 class TicketCard extends StatelessWidget {
   final TicketEntity ticket;
   final bool isDark;
   const TicketCard({super.key, required this.ticket, this.isDark = false});
+
+  // Helper to resolve any stored attachment string to a full URL
+  String _resolveAttachmentUrl(String path) {
+    if (path.startsWith('http')) return path;
+    final base = ApiConstants.baseUrl.replaceAll('/api', '');
+    final clean = path.startsWith('/') ? path.substring(1) : path;
+    if (clean.startsWith('uploads/')) {
+      return '$base/$clean';
+    }
+    return '$base/uploads/attachments/$clean';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,23 +39,15 @@ class TicketCard extends StatelessWidget {
         crossAxisAlignment:
             CrossAxisAlignment.start, // 2. Ratakan konten ke kiri
         children: [
-          // Thumbnail Gambar (Sekarang di paling atas)
           if (ticket.attachments.isNotEmpty)
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: ticket.attachments.first.startsWith('http')
-                  ? Image.network(
-                      ticket.attachments.first,
-                      width: double.infinity, // 3. Lebar penuh
-                      height: 100, // 4. Sesuaikan tinggi gambar
-                      fit: BoxFit.cover,
-                    )
-                  : Image.file(
-                      File(ticket.attachments.first),
-                      width: double.infinity,
-                      height: 100,
-                      fit: BoxFit.cover,
-                    ),
+              child: Image.network(
+                _resolveAttachmentUrl(ticket.attachments.first),
+                width: double.infinity,
+                height: 100,
+                fit: BoxFit.cover,
+              ),
             )
           else
             Container(

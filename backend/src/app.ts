@@ -1,8 +1,10 @@
 import express from 'express';
 import cors from 'cors';
 import * as dotenv from 'dotenv';
+import path from 'path';
 import authRoutes from './routes/auth.routes';
 import ticketRoutes from './routes/ticket.routes';
+import attachmentRoutes from './routes/attachment.routes';
 import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
@@ -23,8 +25,13 @@ app.use(cors({
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
+// Static files untuk serving uploads
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
+// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/tickets', ticketRoutes);
+app.use('/api', attachmentRoutes);
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 

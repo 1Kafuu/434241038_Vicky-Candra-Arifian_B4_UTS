@@ -1,25 +1,55 @@
-import 'package:e_ticketing/features/tickets/domain/entities/ticket_enum.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import '../../../../core/constants/api_constants.dart';
+import '../../domain/entities/ticket_enum.dart';
 import '../../domain/entities/ticket_entity.dart';
 import '../../domain/entities/comment_entity.dart';
 import '../../domain/entities/ticket_history_entity.dart';
 import '../../domain/repositories/ticket_repository.dart';
 import '../datasources/ticket_local_data_source.dart';
+import '../datasources/ticket_remote_datasource.dart';
 import '../models/ticket_model.dart';
 
-class TicketRepositoryImpl implements TicketRepository {
-  final TicketLocalDataSource localDataSource;
+const String _tokenKey = 'auth_token';
 
-  TicketRepositoryImpl({required this.localDataSource});
+class TicketRepositoryImpl implements TicketRepository {
+  final TicketRemoteDataSource? remoteDataSource;
+  final TicketLocalDataSource? localDataSource;
+  final SharedPreferences sharedPreferences;
+
+  TicketRepositoryImpl({
+    this.remoteDataSource,
+    this.localDataSource,
+    required this.sharedPreferences,
+  });
+
+  String? get token => sharedPreferences.getString(_tokenKey);
+
+  bool get isOnline => token != null && remoteDataSource != null;
 
   @override
   Future<List<TicketEntity>> getTickets() async {
-    final ticketMaps = await localDataSource.getTickets();
+    if (isOnline) {
+      final tickets = await remoteDataSource!.getTickets(token!);
+      return tickets;
+    }
+    // Fallback to local
+    final ticketMaps = await localDataSource!.getTickets();
     return ticketMaps.map((map) => TicketModel.fromJson(map)).toList();
   }
 
   @override
-  Future<void> createTicket(TicketEntity ticket) async {
+  Future<TicketEntity?> createTicket(TicketEntity ticket) async {
+    if (isOnline) {
+      final created = await remoteDataSource!.createTicket(
+        token!,
+        title: ticket.title,
+        description: ticket.description,
+        priority: ticket.priority,
+      );
+      return created;
+    }
+    // Fallback to local
     final model = TicketModel(
       id: ticket.id,
       title: ticket.title,
@@ -31,11 +61,16 @@ class TicketRepositoryImpl implements TicketRepository {
       attachments: ticket.attachments,
       comments: ticket.comments,
     );
-    await localDataSource.addTicket(model.toJson());
+    await localDataSource!.addTicket(model.toJson());
   }
 
   @override
   Future<void> updateTicket(TicketEntity ticket) async {
+    if (isOnline) {
+      // Update via API if needed
+      return;
+    }
+    // Fallback to local
     final model = TicketModel(
       id: ticket.id,
       title: ticket.title,
@@ -47,7 +82,7 @@ class TicketRepositoryImpl implements TicketRepository {
       attachments: ticket.attachments,
       comments: ticket.comments,
     );
-    await localDataSource.updateTicket(model.toJson());
+    await localDataSource!.updateTicket(model.toJson());
   }
 
   @override
@@ -56,13 +91,20 @@ class TicketRepositoryImpl implements TicketRepository {
     TicketStatus newStatus,
     String adminName,
   ) async {
+    if (isOnline) {
+      await remoteDataSource!.updateTicketStatus(
+        token!,
+        ticketId,
+        newStatus.label,
+      );
+      return;
+    }
+    // Fallback to local
     final tickets = await getTickets();
     final index = tickets.indexWhere((t) => t.id == ticketId);
 
     if (index != -1) {
       final ticket = tickets[index];
-
-      // 1. BUAT OBJEK HISTORY BARU
       final newHistoryEntry = TicketHistoryEntity(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         action: "Status Updated",
@@ -71,23 +113,20 @@ class TicketRepositoryImpl implements TicketRepository {
         updatedBy: adminName,
       );
 
-      // 2. UPDATE TIKET DENGAN LIST HISTORY YANG BARU
       final updatedTicket = TicketModel(
         id: ticket.id,
         title: ticket.title,
         description: ticket.description,
-        status: newStatus, // Update status
+        status: newStatus,
         priority: ticket.priority,
         createdAt: ticket.createdAt,
         userId: ticket.userId,
         attachments: ticket.attachments,
         comments: ticket.comments,
-        // PENTING: Gabungkan history lama dengan yang baru
         history: [...ticket.history, newHistoryEntry],
       );
 
-      // 3. SIMPAN KEMBALI KE LOCAL DATA SOURCE
-      await localDataSource.updateTicket(updatedTicket.toJson());
+      await localDataSource!.updateTicket(updatedTicket.toJson());
     }
   }
 
@@ -97,6 +136,11 @@ class TicketRepositoryImpl implements TicketRepository {
     CommentEntity comment, {
     String? parentCommentId,
   }) async {
+    if (isOnline) {
+      await remoteDataSource!.addComment(token!, ticketId, comment.message);
+      return;
+    }
+    // Fallback to local
     final tickets = await getTickets();
     final index = tickets.indexWhere((t) => t.id == ticketId);
 
@@ -105,10 +149,8 @@ class TicketRepositoryImpl implements TicketRepository {
       List<CommentEntity> updatedComments = List.from(ticket.comments);
 
       if (parentCommentId == null) {
-        // Komentar utama
         updatedComments.add(comment);
       } else {
-        // Cari komentar parent untuk fitur Balas
         final parentIndex = updatedComments.indexWhere(
           (c) => c.id == parentCommentId,
         );
@@ -128,7 +170,6 @@ class TicketRepositoryImpl implements TicketRepository {
         }
       }
 
-      // Update tiket utuh ke data source
       final updatedTicket = TicketModel(
         id: ticket.id,
         title: ticket.title,
@@ -141,7 +182,28 @@ class TicketRepositoryImpl implements TicketRepository {
         comments: updatedComments,
       );
 
-      await localDataSource.updateTicket(updatedTicket.toJson());
+      await localDataSource!.updateTicket(updatedTicket.toJson());
     }
+  }
+
+  @override
+  Future<List<CommentEntity>> getComments(String ticketId) async {
+    if (isOnline) {
+      final response = await remoteDataSource!.getComments(token!, ticketId);
+      return _parseComments(response);
+    }
+    // Fallback local: not implemented
+    return [];
+  }
+
+  List<CommentEntity> _parseComments(List<Map<String, dynamic>> jsonList) {
+    return jsonList.map((c) => CommentEntity(
+      id: c['id'] ?? '',
+      senderName: c['senderName'] ?? 'Unknown',
+      senderId: c['senderId'] ?? '',
+      message: c['message'] ?? '',
+      timestamp: DateTime.tryParse(c['timestamp'] ?? c['createdAt'] ?? '') ?? DateTime.now(),
+      parentCommentId: c['parentCommentId'],
+    )).toList();
   }
 }
