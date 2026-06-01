@@ -7,11 +7,24 @@ import '../../domain/entities/ticket_entity.dart';
 import '../../domain/entities/comment_entity.dart';
 import '../widgets/status_badge.dart';
 import '../providers/ticket_provider.dart';
+import '../../domain/repositories/ticket_repository.dart';
 import '../widgets/ticket_tracking_stepper.dart';
+import '../../../../core/constants/api_constants.dart';
 
 class TicketDetailScreen extends ConsumerStatefulWidget {
   final TicketEntity ticket;
   const TicketDetailScreen({super.key, required this.ticket});
+
+  // Helper to resolve any stored attachment string to a full URL
+  String _resolveAttachmentUrl(String path) {
+    if (path.startsWith('http')) return path;
+    final base = ApiConstants.baseUrl.replaceAll('/api', '');
+    final clean = path.startsWith('/') ? path.substring(1) : path;
+    if (clean.startsWith('uploads/')) {
+      return '$base/$clean';
+    }
+    return '$base/uploads/attachments/$clean';
+  }
 
   @override
   ConsumerState<TicketDetailScreen> createState() => _TicketDetailScreenState();
@@ -20,6 +33,42 @@ class TicketDetailScreen extends ConsumerStatefulWidget {
 class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
   final TextEditingController _commentController = TextEditingController();
   CommentEntity? _replyingTo;
+  List<CommentEntity> _comments = [];
+  bool _loadingComments = true;
+  final Set<String> _expandedReplies = {}; // Track which replies are expanded
+
+  // Helper to resolve any stored attachment string to a full URL
+  String _resolveAttachmentUrl(String path) {
+    if (path.startsWith('http')) return path;
+    final base = ApiConstants.baseUrl.replaceAll('/api', '');
+    final clean = path.startsWith('/') ? path.substring(1) : path;
+    if (clean.startsWith('uploads/')) {
+      return '$base/$clean';
+    }
+    return '$base/uploads/attachments/$clean';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchComments();
+  }
+
+  Future<void> _fetchComments() async {
+    try {
+      final comments = await ref.read(ticketRepositoryProvider).getComments(widget.ticket.id);
+      if (mounted) {
+        setState(() {
+          _comments = comments;
+          _loadingComments = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loadingComments = false);
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -169,7 +218,9 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      if (currentTicket.comments.isEmpty)
+                      if (_loadingComments)
+                        const Center(child: CircularProgressIndicator())
+                      else if (_comments.isEmpty)
                         const Center(
                           child: Padding(
                             padding: EdgeInsets.all(20.0),
@@ -183,10 +234,11 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                         ListView.builder(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
-                          itemCount: currentTicket.comments.length,
+                          itemCount: _buildCommentTree(_comments).length,
                           itemBuilder: (context, index) {
+                            final comment = _buildCommentTree(_comments)[index];
                             return _buildCommentItem(
-                              currentTicket.comments[index],
+                              comment,
                               isDark: Theme.of(context).brightness == Brightness.dark,
                             );
                           },
@@ -216,20 +268,42 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
         scrollDirection: Axis.horizontal,
         itemCount: paths.length,
         itemBuilder: (context, index) {
+          final url = _resolveAttachmentUrl(paths[index]);
           return Container(
             width: 120,
             margin: const EdgeInsets.only(right: 12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              image: DecorationImage(
-                image: FileImage(File(paths[index])),
-                fit: BoxFit.cover,
-              ),
             ),
+            clipBehavior: Clip.antiAlias,
+            child: Image.network(url, fit: BoxFit.cover),
           );
         },
       ),
     );
+  }
+
+  // Helper untuk ubah flat list ke tree structure
+  List<CommentEntity> _buildCommentTree(List<CommentEntity> flatList) {
+    final Map<String?, List<CommentEntity>> map = {};
+    for (var c in flatList) {
+      map[c.parentCommentId] ??= [];
+      map[c.parentCommentId]!.add(c);
+    }
+    List<CommentEntity> roots = [];
+    for (var c in flatList) {
+      if (c.parentCommentId == null) {
+        roots.add(CommentEntity(
+          id: c.id,
+          senderName: c.senderName,
+          senderId: c.senderId,
+          message: c.message,
+          timestamp: c.timestamp,
+          replies: map[c.id] ?? [],
+        ));
+      }
+    }
+    return roots;
   }
 
   // Helper Widget: Item Komentar Rekursif
@@ -246,7 +320,7 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                 radius: 14,
                 backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
                 child: Text(
-                  comment.senderName[0],
+                  comment.senderName.isNotEmpty ? comment.senderName[0] : '?',
                   style: TextStyle(
                     fontSize: 12,
                     color: dark ? Colors.white : Colors.black,
@@ -296,8 +370,36 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
               ),
             ),
           if (comment.replies.isNotEmpty)
-            ...comment.replies.map(
-              (reply) => _buildCommentItem(reply, isDark: dark, isReply: true),
+            Column(
+              children: [
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      if (_expandedReplies.contains(comment.id)) {
+                        _expandedReplies.remove(comment.id);
+                      } else {
+                        _expandedReplies.add(comment.id);
+                      }
+                    });
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      _expandedReplies.contains(comment.id)
+                          ? "Hide replies"
+                          : "Show ${comment.replies.length} reply(s)",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue,
+                      ),
+                    ),
+                  ),
+                ),
+                if (_expandedReplies.contains(comment.id))
+                  ...comment.replies.map(
+                    (reply) => _buildCommentItem(reply, isDark: dark, isReply: true),
+                  ),
+              ],
             ),
         ],
       ),
@@ -392,6 +494,8 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                       );
                   _commentController.clear();
                   setState(() => _replyingTo = null);
+                  // Refresh comments
+                  await _fetchComments();
                   FocusScope.of(context).unfocus();
                 },
               ),

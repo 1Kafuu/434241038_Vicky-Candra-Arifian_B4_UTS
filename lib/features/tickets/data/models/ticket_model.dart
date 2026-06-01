@@ -1,3 +1,4 @@
+import '../../../../core/constants/api_constants.dart';
 import '../../domain/entities/ticket_entity.dart';
 import '../../domain/entities/ticket_enum.dart';
 import '../../domain/entities/comment_entity.dart';
@@ -32,7 +33,7 @@ class TicketModel extends TicketEntity {
       ),
       createdAt: DateTime.parse(json['createdAt']),
       userId: json['userId'],
-      attachments: List<String>.from(json['attachments'] ?? []),
+      attachments: _processAttachments(json['attachments'] ?? []),
       comments: _commentsFromJson(json['comments'] ?? []),
       history: _historyFromJson(json['history']),
     );
@@ -59,10 +60,10 @@ class TicketModel extends TicketEntity {
         .map(
           (c) => CommentEntity(
             id: c['id'],
-            senderName: c['senderName'],
-            senderId: c['senderId'],
-            message: c['message'],
-            timestamp: DateTime.parse(c['timestamp']),
+            senderName: c['senderName'] ?? 'Unknown',
+            senderId: c['senderId'] ?? '',
+            message: c['message'] ?? '',
+            timestamp: DateTime.tryParse(c['timestamp'] ?? c['createdAt'] ?? '') ?? DateTime.now(),
             replies: _commentsFromJson(c['replies']), // Rekursif untuk balasan
           ),
         )
@@ -84,6 +85,20 @@ class TicketModel extends TicketEntity {
           },
         )
         .toList();
+  }
+
+  static List<String> _processAttachments(dynamic attachments) {
+    if (attachments == null) return [];
+    final baseUrl = ApiConstants.baseUrl.replaceAll('/api', '');
+    return (attachments as List).map((path) {
+      final str = path.toString();
+      // Kalau sudah URL lengkap, return langsung
+      if (str.startsWith('http')) return str;
+      // Kalau sudah ada uploads/attachments, gabung langsung
+      if (str.startsWith('uploads/')) return '$baseUrl/$str';
+      // Kalau filename aja, tambahkan path uploads/attachments
+      return '$baseUrl/uploads/attachments/$str';
+    }).toList();
   }
 
   static List<TicketHistoryEntity> _historyFromJson(dynamic json) {
