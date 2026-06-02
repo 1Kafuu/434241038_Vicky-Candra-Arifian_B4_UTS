@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../auth/data/models/user_model.dart';
 import '../../../auth/domain/entities/role_enum.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../domain/entities/ticket_entity.dart';
 import '../../domain/entities/comment_entity.dart';
 import '../widgets/status_badge.dart';
@@ -284,6 +285,7 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                             return _buildCommentItem(
                               comment,
                               isDark: Theme.of(context).brightness == Brightness.dark,
+                              currentTicketId: currentTicket.id,
                             );
                           },
                         ),
@@ -359,101 +361,156 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
   }
 
   // Helper Widget: Item Komentar Rekursif
-  Widget _buildCommentItem(CommentEntity comment, {bool isReply = false, bool? isDark}) {
+  Widget _buildCommentItem(
+    CommentEntity comment, {
+    bool isReply = false,
+    bool? isDark,
+    String? currentTicketId,
+  }) {
     final dark = isDark ?? Theme.of(context).brightness == Brightness.dark;
-    return Padding(
-      padding: EdgeInsets.only(left: isReply ? 40.0 : 0.0, bottom: 16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 14,
-                backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                child: Text(
-                  comment.senderName.isNotEmpty ? comment.senderName[0] : '?',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: dark ? Colors.white : Colors.black,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                comment.senderName,
+    final replyGuideColor = dark ? Colors.grey.shade700 : Colors.grey.shade300;
+    final indentPadding = isReply ? 48.0 : 0.0;
+    final commentBody = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            CircleAvatar(
+              radius: 14,
+              backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              child: Text(
+                comment.senderName.isNotEmpty ? comment.senderName[0] : '?',
                 style: TextStyle(
-                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
                   color: dark ? Colors.white : Colors.black,
                 ),
               ),
-              const Spacer(),
-              Text(
-                "${comment.timestamp.hour}:${comment.timestamp.minute.toString().padLeft(2, '0')}",
-                style: TextStyle(
-                  fontSize: 11,
-                  color: dark ? Colors.grey.shade400 : Colors.grey.shade600,
-                ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              comment.senderName,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: dark ? Colors.white : Colors.black,
               ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: dark ? Colors.grey.shade900 : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: dark ? Colors.grey.shade700 : Colors.grey.shade200),
             ),
-            child: Text(
-              comment.message,
-              style: TextStyle(color: dark ? Colors.white : Colors.black),
+            const Spacer(),
+            Text(
+              "${comment.timestamp.hour}:${comment.timestamp.minute.toString().padLeft(2, '0')}",
+              style: TextStyle(
+                fontSize: 11,
+                color: dark ? Colors.grey.shade400 : Colors.grey.shade600,
+              ),
             ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: dark ? Colors.grey.shade900 : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: dark ? Colors.grey.shade700 : Colors.grey.shade200),
           ),
+          child: Text(
+            comment.message,
+            style: TextStyle(color: dark ? Colors.white : Colors.black),
+          ),
+        ),
           if (!isReply)
-            TextButton(
-              onPressed: () => setState(() => _replyingTo = comment),
-              child: Text(
-                "Balas",
-                style: TextStyle(
-                  fontSize: 12,
-                  color: dark ? Colors.grey.shade400 : Colors.grey.shade600,
-                ),
-              ),
-            ),
-          if (comment.replies.isNotEmpty)
-            Column(
+            Row(
               children: [
-                GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      if (_expandedReplies.contains(comment.id)) {
-                        _expandedReplies.remove(comment.id);
-                      } else {
-                        _expandedReplies.add(comment.id);
-                      }
-                    });
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      _expandedReplies.contains(comment.id)
-                          ? "Hide replies"
-                          : "Show ${comment.replies.length} reply(s)",
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.blue,
-                      ),
+                TextButton(
+                  onPressed: () => setState(() => _replyingTo = comment),
+                  child: Text(
+                    "Balas",
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: dark ? Colors.grey.shade400 : Colors.grey.shade600,
                     ),
                   ),
                 ),
-                if (_expandedReplies.contains(comment.id))
-                  ...comment.replies.map(
-                    (reply) => _buildCommentItem(reply, isDark: dark, isReply: true),
+                if (_canDeleteComment(comment) && currentTicketId != null)
+                  TextButton(
+                    onPressed: () => _confirmDeleteComment(
+                      currentTicketId: currentTicketId,
+                      comment: comment,
+                    ),
+                    child: Text(
+                      "Hapus",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.red.shade400,
+                      ),
+                    ),
                   ),
               ],
             ),
-        ],
+          if (comment.replies.isNotEmpty)
+          Column(
+            children: [
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    if (_expandedReplies.contains(comment.id)) {
+                      _expandedReplies.remove(comment.id);
+                    } else {
+                      _expandedReplies.add(comment.id);
+                    }
+                  });
+                },
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    _expandedReplies.contains(comment.id)
+                        ? "Hide replies"
+                        : "Show ${comment.replies.length} reply(s)",
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ),
+              ),
+              if (_expandedReplies.contains(comment.id))
+                ...comment.replies.map(
+                  (reply) => _buildCommentItem(
+                    reply,
+                    isDark: dark,
+                    isReply: true,
+                    currentTicketId: currentTicketId,
+                  ),
+                ),
+            ],
+          ),
+      ],
+    );
+
+    if (!isReply) {
+      return Padding(
+        padding: EdgeInsets.only(left: indentPadding, bottom: 16.0),
+        child: commentBody,
+      );
+    }
+
+    // Reply: indent + left border guide line to visually indicate it's a reply.
+    return Padding(
+      padding: EdgeInsets.only(left: indentPadding, bottom: 16.0),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 3,
+              margin: const EdgeInsets.only(right: 12),
+              decoration: BoxDecoration(
+                color: replyGuideColor,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Expanded(child: commentBody),
+          ],
+        ),
       ),
     );
   }
@@ -556,6 +613,83 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
         ],
       ),
     );
+  }
+
+  // ─── Delete Comment ────────────────────────────────────────────────────
+
+  /// Cek apakah user saat ini boleh menghapus komentar.
+  /// Boleh jika: user adalah pengirim komentar, atau user adalah admin.
+  bool _canDeleteComment(CommentEntity comment) {
+    final user = ref.read(currentUserProvider);
+    if (user == null) return false;
+    if (user.id == comment.senderId) return true;
+    return user.role == UserRole.admin;
+  }
+
+  /// Tampilkan dialog konfirmasi, lalu panggil API hapus komentar.
+  Future<void> _confirmDeleteComment({
+    required String currentTicketId,
+    required CommentEntity comment,
+  }) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Hapus Komentar'),
+        content: const Text(
+          'Apakah Anda yakin ingin menghapus komentar ini? Tindakan ini tidak dapat dibatalkan.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (!mounted) return;
+
+    // Tampilkan loading indicator sederhana
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      await ref
+          .read(ticketListProvider.notifier)
+          .deleteComment(currentTicketId, comment.id);
+      if (!mounted) return;
+      Navigator.of(context).pop(); // tutup loading
+      await _fetchComments(); // refresh list lokal
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Komentar berhasil dihapus'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop(); // tutup loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menghapus komentar: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Widget _buildPriorityTag(dynamic priority) {

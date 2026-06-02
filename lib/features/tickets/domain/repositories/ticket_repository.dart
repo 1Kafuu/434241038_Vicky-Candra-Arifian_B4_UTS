@@ -20,6 +20,13 @@ abstract class TicketRepository {
 
   Future<void> updateTicketStatus(String ticketId, TicketStatus newStatus, String adminName);
 
+  /// Hapus komentar pada tiket
+  Future<void> deleteComment({
+    required String token,
+    required String ticketId,
+    required String commentId,
+  });
+
   /// Resolve/close ticket (Admin only)
   Future<void> resolveTicket(String ticketId);
 
