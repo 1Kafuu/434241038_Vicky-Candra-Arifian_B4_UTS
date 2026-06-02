@@ -146,7 +146,12 @@ class TicketRepositoryImpl implements TicketRepository {
     String? parentCommentId,
   }) async {
     if (isOnline) {
-      await remoteDataSource!.addComment(token!, ticketId, comment.message);
+      await remoteDataSource!.addComment(
+        token!,
+        ticketId,
+        comment.message,
+        parentCommentId: parentCommentId,
+      );
       return;
     }
     // Fallback to local
@@ -217,6 +222,55 @@ class TicketRepositoryImpl implements TicketRepository {
       timestamp: DateTime.tryParse(c['createdAt'] ?? c['timestamp'] ?? '') ?? DateTime.now(),
       parentCommentId: c['parentCommentId'],
     )).toList();
+  }
+
+  @override
+  Future<void> deleteComment({
+    required String token,
+    required String ticketId,
+    required String commentId,
+  }) async {
+    if (isOnline) {
+      await remoteDataSource!.deleteComment(token, ticketId, commentId);
+      return;
+    }
+    // Fallback to local: hapus dari list comment di ticket
+    final tickets = await getTickets();
+    final index = tickets.indexWhere((t) => t.id == ticketId);
+    if (index == -1) return;
+
+    final ticket = tickets[index];
+    final updatedComments = ticket.comments
+        .where((c) => c.id != commentId)
+        .map((c) {
+      // Hapus juga reply yang parent-nya adalah comment yang dihapus
+      final remainingReplies = c.replies.where((r) => r.id != commentId).toList();
+      return CommentEntity(
+        id: c.id,
+        senderName: c.senderName,
+        senderId: c.senderId,
+        message: c.message,
+        timestamp: c.timestamp,
+        parentCommentId: c.parentCommentId,
+        replies: remainingReplies,
+      );
+    }).toList();
+
+    final updatedTicket = TicketModel(
+      id: ticket.id,
+      title: ticket.title,
+      description: ticket.description,
+      status: ticket.status,
+      priority: ticket.priority,
+      createdAt: ticket.createdAt,
+      userId: ticket.userId,
+      assignedTo: ticket.assignedTo,
+      updatedAt: DateTime.now(),
+      resolvedAt: ticket.resolvedAt,
+      attachments: ticket.attachments,
+      comments: updatedComments,
+    );
+    await localDataSource!.updateTicket(updatedTicket.toJson());
   }
 
   @override

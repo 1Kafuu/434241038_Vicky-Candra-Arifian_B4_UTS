@@ -18,7 +18,7 @@ abstract class TicketRemoteDataSource {
   Future<TicketModel> resolveTicket(String token, String ticketId);
   Future<List<Map<String, dynamic>>> getTicketHistory(String token, String ticketId);
   Future<List<Map<String, dynamic>>> getComments(String token, String ticketId);
-  Future<Map<String, dynamic>> addComment(String token, String ticketId, String content);
+  Future<Map<String, dynamic>> addComment(String token, String ticketId, String content, {String? parentCommentId});
   Future<void> deleteComment(String token, String ticketId, String commentId);
   Future<Map<String, dynamic>> uploadAttachment(String token, String ticketId, List<int> fileBytes, String filename);
   Future<List<String>> getAttachments(String token, String ticketId);
@@ -159,11 +159,19 @@ class TicketRemoteDataSourceImpl implements TicketRemoteDataSource {
   }
 
   @override
-  Future<Map<String, dynamic>> addComment(String token, String ticketId, String content) async {
+  Future<Map<String, dynamic>> addComment(
+    String token,
+    String ticketId,
+    String content, {
+    String? parentCommentId,
+  }) async {
     final response = await client.post(
       Uri.parse(ApiConstants.ticketComments(ticketId)),
       headers: _headers(token),
-      body: jsonEncode({'message': content}),
+      body: jsonEncode({
+        'message': content,
+        if (parentCommentId != null) 'parentCommentId': parentCommentId,
+      }),
     );
 
     final body = jsonDecode(response.body);

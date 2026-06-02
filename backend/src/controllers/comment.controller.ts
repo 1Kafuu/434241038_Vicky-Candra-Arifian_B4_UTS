@@ -92,11 +92,11 @@ export async function addComment(req: Request, res: Response) {
     }
 
     // If replying to a comment, verify parent exists
-    if (body.parentId) {
+    if (body.parentCommentId) {
       const { data: parentComment } = await supabase
         .from('comments')
         .select('id')
-        .eq('id', body.parentId)
+        .eq('id', body.parentCommentId)
         .single();
 
       if (!parentComment) {

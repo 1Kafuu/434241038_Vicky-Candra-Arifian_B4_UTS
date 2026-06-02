@@ -166,6 +166,41 @@ class TicketListNotifier extends AsyncNotifier<List<TicketEntity>> {
     }
   }
 
+  Future<void> deleteComment(String ticketId, String commentId) async {
+    try {
+      final repo = ref.read(ticketRepositoryProvider);
+      if (repo is TicketRepositoryImpl && repo.isOnline) {
+        await repo.deleteComment(token: repo.token!, ticketId: ticketId, commentId: commentId);
+      }
+
+      // Refresh comments
+      final comments = await ref.read(ticketRepositoryProvider).getComments(ticketId);
+
+      // Update ticket di list dengan comments baru
+      final currentTickets = state.whenOrNull(data: (data) => data) ?? [];
+      final updatedTickets = currentTickets.map((t) {
+        if (t.id == ticketId) {
+          return TicketModel(
+            id: t.id,
+            title: t.title,
+            description: t.description,
+            status: t.status,
+            priority: t.priority,
+            createdAt: t.createdAt,
+            userId: t.userId,
+            attachments: t.attachments,
+            comments: comments,
+          );
+        }
+        return t;
+      }).toList();
+
+      state = AsyncValue.data(updatedTickets);
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+    }
+  }
+
   Future<void> assignTicket(String ticketId, String assignedTo, String helpdeskName) async {
     try {
       await ref.read(ticketRepositoryProvider).assignTicket(ticketId, assignedTo);
