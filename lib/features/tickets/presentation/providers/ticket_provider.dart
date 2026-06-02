@@ -147,6 +147,24 @@ class TicketListNotifier extends AsyncNotifier<List<TicketEntity>> {
       state = AsyncValue.error(e, stack);
     }
   }
+
+  Future<void> resolveTicket(String ticketId) async {
+    try {
+      await ref.read(ticketRepositoryProvider).resolveTicket(ticketId);
+
+      // Refresh data
+      final updatedTickets = await ref.read(ticketRepositoryProvider).getTickets();
+      state = AsyncValue.data(updatedTickets);
+
+      await NotificationService.showNotification(
+        id: ticketId.hashCode,
+        title: 'Tiket #${ticketId.toUpperCase()} Resolved',
+        body: 'Tiket telah di-resolve',
+      );
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+    }
+  }
 }
 
 final ticketListProvider =
@@ -162,9 +180,11 @@ final ticketStatsProvider = Provider<Map<String, int>>((ref) {
       return {
         'total': tickets.length,
         'open': tickets.where((t) => t.status == TicketStatus.open).length,
+        'assigned': tickets.where((t) => t.status == TicketStatus.assigned).length,
         'inProgress': tickets
             .where((t) => t.status == TicketStatus.inProgress)
             .length,
+        'pending': tickets.where((t) => t.status == TicketStatus.pending).length,
         'resolved': tickets
             .where((t) => t.status == TicketStatus.resolved)
             .length,
@@ -174,7 +194,9 @@ final ticketStatsProvider = Provider<Map<String, int>>((ref) {
     orElse: () => {
       'total': 0,
       'open': 0,
+      'assigned': 0,
       'inProgress': 0,
+      'pending': 0,
       'resolved': 0,
       'closed': 0,
     },

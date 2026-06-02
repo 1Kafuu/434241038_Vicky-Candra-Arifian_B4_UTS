@@ -58,6 +58,9 @@ class TicketRepositoryImpl implements TicketRepository {
       priority: ticket.priority,
       createdAt: ticket.createdAt,
       userId: ticket.userId,
+      assignedTo: ticket.assignedTo,
+      updatedAt: ticket.updatedAt,
+      resolvedAt: ticket.resolvedAt,
       attachments: ticket.attachments,
       comments: ticket.comments,
     );
@@ -67,7 +70,6 @@ class TicketRepositoryImpl implements TicketRepository {
   @override
   Future<void> updateTicket(TicketEntity ticket) async {
     if (isOnline) {
-      // Update via API if needed
       return;
     }
     // Fallback to local
@@ -79,6 +81,9 @@ class TicketRepositoryImpl implements TicketRepository {
       priority: ticket.priority,
       createdAt: ticket.createdAt,
       userId: ticket.userId,
+      assignedTo: ticket.assignedTo,
+      updatedAt: ticket.updatedAt,
+      resolvedAt: ticket.resolvedAt,
       attachments: ticket.attachments,
       comments: ticket.comments,
     );
@@ -107,10 +112,11 @@ class TicketRepositoryImpl implements TicketRepository {
       final ticket = tickets[index];
       final newHistoryEntry = TicketHistoryEntity(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        action: "Status Updated",
-        description: "Status tiket diubah menjadi ${newStatus.label}",
-        timestamp: DateTime.now(),
-        updatedBy: adminName,
+        ticketId: ticketId,
+        changedBy: adminName,
+        oldStatus: ticket.status.label,
+        newStatus: newStatus.label,
+        createdAt: DateTime.now(),
       );
 
       final updatedTicket = TicketModel(
@@ -121,6 +127,9 @@ class TicketRepositoryImpl implements TicketRepository {
         priority: ticket.priority,
         createdAt: ticket.createdAt,
         userId: ticket.userId,
+        assignedTo: ticket.assignedTo,
+        updatedAt: DateTime.now(),
+        resolvedAt: ticket.resolvedAt,
         attachments: ticket.attachments,
         comments: ticket.comments,
         history: [...ticket.history, newHistoryEntry],
@@ -178,6 +187,9 @@ class TicketRepositoryImpl implements TicketRepository {
         priority: ticket.priority,
         createdAt: ticket.createdAt,
         userId: ticket.userId,
+        assignedTo: ticket.assignedTo,
+        updatedAt: ticket.updatedAt,
+        resolvedAt: ticket.resolvedAt,
         attachments: ticket.attachments,
         comments: updatedComments,
       );
@@ -202,8 +214,15 @@ class TicketRepositoryImpl implements TicketRepository {
       senderName: c['senderName'] ?? 'Unknown',
       senderId: c['senderId'] ?? '',
       message: c['message'] ?? '',
-      timestamp: DateTime.tryParse(c['timestamp'] ?? c['createdAt'] ?? '') ?? DateTime.now(),
+      timestamp: DateTime.tryParse(c['createdAt'] ?? c['timestamp'] ?? '') ?? DateTime.now(),
       parentCommentId: c['parentCommentId'],
     )).toList();
+  }
+
+  @override
+  Future<void> resolveTicket(String ticketId) async {
+    if (isOnline) {
+      await remoteDataSource!.resolveTicket(token!, ticketId);
+    }
   }
 }

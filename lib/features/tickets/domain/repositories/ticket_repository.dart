@@ -19,4 +19,7 @@ abstract class TicketRepository {
   Future<List<CommentEntity>> getComments(String ticketId);
 
   Future<void> updateTicketStatus(String ticketId, TicketStatus newStatus, String adminName);
+
+  /// Resolve/close ticket (Admin only)
+  Future<void> resolveTicket(String ticketId);
 }

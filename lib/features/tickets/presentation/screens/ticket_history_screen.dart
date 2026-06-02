@@ -41,8 +41,8 @@ class GlobalHistoryScreen extends ConsumerWidget {
 
           // 2. Urutkan berdasarkan waktu terbaru (Global)
           allHistoryEntries.sort((a, b) => 
-            (b['data'] as TicketHistoryEntity).timestamp.compareTo(
-            (a['data'] as TicketHistoryEntity).timestamp));
+            (b['data'] as TicketHistoryEntity).createdAt.compareTo(
+            (a['data'] as TicketHistoryEntity).createdAt));
 
           if (allHistoryEntries.isEmpty) {
             return Center(

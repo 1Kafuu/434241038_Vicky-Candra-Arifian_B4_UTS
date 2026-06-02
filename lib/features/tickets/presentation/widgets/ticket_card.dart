@@ -119,21 +119,14 @@ class TicketCard extends StatelessWidget {
     );
   }
 
-  Color _getStatusColor(dynamic status) {
-    // Logika warna berdasarkan TicketStatus enum
-    switch (status) {
-      case TicketStatus.open:
-        return Colors.green;
-      case TicketStatus.pending:
-        return Colors.blue;
-      case TicketStatus.resolved:
-        return Colors.purple;
-      case TicketStatus.closed:
-        return Colors.grey;
-      case TicketStatus.inProgress:
-        return Colors.orange;
-      default:
-        return AppColors.primary;
-    }
+  Color _getStatusColor(TicketStatus status) {
+    return switch (status) {
+      TicketStatus.open => Colors.green,
+      TicketStatus.assigned => Colors.indigo,
+      TicketStatus.pending => Colors.blue,
+      TicketStatus.resolved => Colors.purple,
+      TicketStatus.closed => Colors.grey,
+      TicketStatus.inProgress => Colors.orange,
+    };
   }
 }
