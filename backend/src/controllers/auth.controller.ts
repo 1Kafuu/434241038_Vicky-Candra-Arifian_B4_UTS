@@ -155,3 +155,35 @@ export async function logout(
     next(err);
   }
 }
+
+// ─── Helpdesks ─────────────────────────────────────────────────────────────────
+// GET /api/auth/helpdesks  (protected)
+export async function getHelpdesks(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { data: profiles, error } = await supabaseAdmin
+      .from('profiles')
+      .select('*')
+      .eq('role', 'helpdesk');
+
+    if (error) return next(createError(500, error.message));
+
+    const helpdesks = (profiles as ProfileRow[]).map(profile => ({
+      id: profile.id,
+      name: profile.name,
+      role: profile.role,
+      profileImage: profile.profile_image,
+      createdAt: profile.created_at,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: helpdesks,
+    });
+  } catch (err) {
+    next(err);
+  }
+}

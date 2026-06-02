@@ -225,4 +225,11 @@ class TicketRepositoryImpl implements TicketRepository {
       await remoteDataSource!.resolveTicket(token!, ticketId);
     }
   }
+
+  @override
+  Future<void> assignTicket(String ticketId, String assignedTo) async {
+    if (isOnline) {
+      await remoteDataSource!.assignTicket(token!, ticketId, assignedTo);
+    }
+  }
 }

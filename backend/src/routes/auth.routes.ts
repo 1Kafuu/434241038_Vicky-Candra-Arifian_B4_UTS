@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { register, login, me, logout } from '../controllers/auth.controller';
+import { register, login, me, logout, getHelpdesks } from '../controllers/auth.controller';
 import { authMiddleware } from '../middleware/auth';
 
 const router = Router();
@@ -10,6 +10,7 @@ router.post('/login', login);
 
 // Protected routes — token required
 router.get('/me', authMiddleware, me);
+router.get('/helpdesks', authMiddleware, getHelpdesks);
 router.post('/logout', authMiddleware, logout);
 
 export default router;

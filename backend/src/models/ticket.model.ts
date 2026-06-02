@@ -59,7 +59,7 @@ export interface UpdateStatusRequest {
 
 // Request body for POST /api/tickets/:id/assign
 export interface AssignTicketRequest {
-  assignedTo: string;
+  assignedTo?: string | null;
 }
 
 // Helper — maps Supabase row to Ticket interface

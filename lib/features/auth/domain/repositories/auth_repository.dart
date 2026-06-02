@@ -9,4 +9,5 @@ abstract class AuthRepository {
   });
   Future<UserEntity?> getCurrentUser();
   Future<void> logout();
+  Future<List<UserEntity>> getHelpdeskUsers();
 }
