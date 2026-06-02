@@ -15,7 +15,7 @@ export const storageConfig = {
   uploadDir: UPLOAD_DIR,
 
   // Base URL untuk akses file (bisa diganti ke CDN/Supabase Storage)
-  baseUrl: process.env.BASE_URL || 'http://192.168.49.116:3000/uploads/attachments',
+  baseUrl: process.env.BASE_URL || 'http://192.168.137.1:3000/uploads/attachments',
 
   // Max file size: 10MB
   maxFileSize: 10 * 1024 * 1024,

@@ -13,6 +13,9 @@ class TicketModel extends TicketEntity {
     required super.priority,
     required super.createdAt,
     required super.userId,
+    super.assignedTo,
+    super.updatedAt,
+    super.resolvedAt,
     super.attachments,
     super.comments,
     super.history,
@@ -24,15 +27,18 @@ class TicketModel extends TicketEntity {
       title: json['title'],
       description: json['description'],
       priority: TicketPriority.values.firstWhere(
-        (e) => e.label == json['priority'], // Cek berdasarkan label
+        (e) => e.label == json['priority'],
         orElse: () => TicketPriority.medium,
       ),
       status: TicketStatus.values.firstWhere(
-        (e) => e.label == json['status'], // Cek berdasarkan label
+        (e) => e.label == json['status'],
         orElse: () => TicketStatus.open,
       ),
       createdAt: DateTime.parse(json['createdAt']),
       userId: json['userId'],
+      assignedTo: json['assignedTo'],
+      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
+      resolvedAt: json['resolvedAt'] != null ? DateTime.parse(json['resolvedAt']) : null,
       attachments: _processAttachments(json['attachments'] ?? []),
       comments: _commentsFromJson(json['comments'] ?? []),
       history: _historyFromJson(json['history']),
@@ -44,10 +50,13 @@ class TicketModel extends TicketEntity {
       'id': id,
       'title': title,
       'description': description,
-      'status': status.label, // Simpan labelnya saja: "Open"
-      'priority': priority.label, // Simpan labelnya saja: "Low"
+      'status': status.label,
+      'priority': priority.label,
       'createdAt': createdAt.toIso8601String(),
       'userId': userId,
+      'assignedTo': assignedTo,
+      'updatedAt': updatedAt?.toIso8601String(),
+      'resolvedAt': resolvedAt?.toIso8601String(),
       'attachments': attachments,
       'comments': _commentsToJson(comments),
       'history': _historyToJson(history),
@@ -63,8 +72,8 @@ class TicketModel extends TicketEntity {
             senderName: c['senderName'] ?? 'Unknown',
             senderId: c['senderId'] ?? '',
             message: c['message'] ?? '',
-            timestamp: DateTime.tryParse(c['timestamp'] ?? c['createdAt'] ?? '') ?? DateTime.now(),
-            replies: _commentsFromJson(c['replies']), // Rekursif untuk balasan
+            timestamp: DateTime.tryParse(c['createdAt'] ?? c['timestamp'] ?? '') ?? DateTime.now(),
+            parentCommentId: c['parentCommentId'],
           ),
         )
         .toList();
@@ -80,8 +89,8 @@ class TicketModel extends TicketEntity {
             'senderName': c.senderName,
             'senderId': c.senderId,
             'message': c.message,
-            'timestamp': c.timestamp.toIso8601String(),
-            'replies': _commentsToJson(c.replies), // Rekursif untuk balasan
+            'createdAt': c.timestamp.toIso8601String(),
+            'parentCommentId': c.parentCommentId,
           },
         )
         .toList();
@@ -106,10 +115,11 @@ class TicketModel extends TicketEntity {
     return (json as List).map((item) {
       return TicketHistoryEntity(
         id: item['id'],
-        action: item['action'],
-        description: item['description'],
-        timestamp: DateTime.parse(item['timestamp']),
-        updatedBy: item['updatedBy'],
+        ticketId: item['ticketId'] ?? '',
+        changedBy: item['changedBy'] ?? '',
+        oldStatus: item['oldStatus'],
+        newStatus: item['newStatus'] ?? '',
+        createdAt: DateTime.parse(item['createdAt']),
       );
     }).toList();
   }
@@ -120,10 +130,11 @@ class TicketModel extends TicketEntity {
     return historyList.map((item) {
       return {
         'id': item.id,
-        'action': item.action,
-        'description': item.description,
-        'timestamp': item.timestamp.toIso8601String(),
-        'updatedBy': item.updatedBy,
+        'ticketId': item.ticketId,
+        'changedBy': item.changedBy,
+        'oldStatus': item.oldStatus,
+        'newStatus': item.newStatus,
+        'createdAt': item.createdAt.toIso8601String(),
       };
     }).toList();
   }

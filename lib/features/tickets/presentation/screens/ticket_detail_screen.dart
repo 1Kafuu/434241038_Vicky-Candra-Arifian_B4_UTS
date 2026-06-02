@@ -140,21 +140,59 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                           ),
                         ),
                         const SizedBox(height: 12),
+                        _AdminStatusDropdown(
+                          currentStatus: currentTicket.status,
+                          onStatusChanged: (status) {
+                            if (status == TicketStatus.resolved) {
+                              ref
+                                  .read(ticketListProvider.notifier)
+                                  .resolveTicket(currentTicket.id);
+                            } else {
+                              ref
+                                  .read(ticketListProvider.notifier)
+                                  .updateStatus(currentTicket.id, status);
+                            }
+                          },
+                        ),
+                        const Divider(height: 50),
+                      ] else if (user?.role.name == 'helpdesk') ...[
+                        const SizedBox(height: 24),
+                        const Text(
+                          "Update Status",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
                         Wrap(
                           spacing: 8,
-                          children: TicketStatus.values.map((status) {
-                            return ActionChip(
-                              label: Text(status.label),
-                              onPressed: () {
-                                ref
-                                    .read(ticketListProvider.notifier)
-                                    .updateStatus(currentTicket.id, status);
-                              },
-                              backgroundColor: currentTicket.status == status
-                                  ? Theme.of(context).colorScheme.primary.withOpacity(0.2)
-                                  : null,
-                            );
-                          }).toList(),
+                          children: [
+                            if (currentTicket.status != TicketStatus.inProgress)
+                              ActionChip(
+                                label: const Text('In Progress'),
+                                onPressed: () {
+                                  ref
+                                      .read(ticketListProvider.notifier)
+                                      .updateStatus(currentTicket.id, TicketStatus.inProgress);
+                                },
+                                backgroundColor: currentTicket.status == TicketStatus.inProgress
+                                    ? Theme.of(context).colorScheme.primary.withOpacity(0.2)
+                                    : null,
+                              ),
+                            if (currentTicket.status != TicketStatus.pending)
+                              ActionChip(
+                                label: const Text('Pending'),
+                                onPressed: () {
+                                  ref
+                                      .read(ticketListProvider.notifier)
+                                      .updateStatus(currentTicket.id, TicketStatus.pending);
+                                },
+                                backgroundColor: currentTicket.status == TicketStatus.pending
+                                    ? Theme.of(context).colorScheme.primary.withOpacity(0.2)
+                                    : null,
+                              ),
+                          ],
                         ),
                         const Divider(height: 50),
                       ],
@@ -522,6 +560,91 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
           color: isDark ? Colors.white : Colors.black,
         ),
       ),
+    );
+  }
+}
+
+class _AdminStatusDropdown extends StatefulWidget {
+  final TicketStatus currentStatus;
+  final void Function(TicketStatus status) onStatusChanged;
+
+  const _AdminStatusDropdown({
+    required this.currentStatus,
+    required this.onStatusChanged,
+  });
+
+  @override
+  State<_AdminStatusDropdown> createState() => _AdminStatusDropdownState();
+}
+
+class _AdminStatusDropdownState extends State<_AdminStatusDropdown> {
+  TicketStatus? _selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Admin options: Open (reopen) and Resolved
+    final options = <TicketStatus>[
+      if (widget.currentStatus != TicketStatus.open) TicketStatus.open,
+      if (widget.currentStatus != TicketStatus.resolved) TicketStatus.resolved,
+    ];
+
+    return Column(
+      children: [
+        ...options.map((s) {
+          return RadioListTile<TicketStatus>(
+            title: Row(
+              children: [
+                Icon(
+                  s == TicketStatus.resolved
+                      ? Icons.check_circle_outline
+                      : Icons.refresh,
+                  size: 20,
+                  color: s == TicketStatus.resolved ? Colors.green : Colors.blue,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  s == TicketStatus.resolved ? 'Resolved (tutup tiket)' : 'Open (buka kembali)',
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black,
+                  ),
+                ),
+              ],
+            ),
+            value: s,
+            groupValue: _selected,
+            onChanged: (value) {
+              setState(() => _selected = value);
+            },
+            activeColor: s == TicketStatus.resolved ? Colors.green : Theme.of(context).colorScheme.primary,
+            contentPadding: EdgeInsets.zero,
+          );
+        }),
+        if (_selected != null) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => widget.onStatusChanged(_selected!),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _selected == TicketStatus.resolved
+                    ? Colors.green
+                    : Theme.of(context).colorScheme.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: Text(
+                _selected == TicketStatus.resolved
+                    ? 'Konfirmasi Resolve'
+                    : 'Buka Kembali Tiket',
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
