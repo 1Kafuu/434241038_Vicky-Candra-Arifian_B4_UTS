@@ -1,30 +1,20 @@
-import 'dart:io';
 import 'package:e_ticketing/features/tickets/domain/entities/ticket_enum.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../auth/data/models/user_model.dart';
+import '../../../auth/domain/entities/role_enum.dart';
 import '../../domain/entities/ticket_entity.dart';
 import '../../domain/entities/comment_entity.dart';
 import '../widgets/status_badge.dart';
 import '../providers/ticket_provider.dart';
-import '../../domain/repositories/ticket_repository.dart';
 import '../widgets/ticket_tracking_stepper.dart';
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/widgets/attachment_preview.dart';
 
 class TicketDetailScreen extends ConsumerStatefulWidget {
   final TicketEntity ticket;
   const TicketDetailScreen({super.key, required this.ticket});
-
-  // Helper to resolve any stored attachment string to a full URL
-  String _resolveAttachmentUrl(String path) {
-    if (path.startsWith('http')) return path;
-    final base = ApiConstants.baseUrl.replaceAll('/api', '');
-    final clean = path.startsWith('/') ? path.substring(1) : path;
-    if (clean.startsWith('uploads/')) {
-      return '$base/$clean';
-    }
-    return '$base/uploads/attachments/$clean';
-  }
 
   @override
   ConsumerState<TicketDetailScreen> createState() => _TicketDetailScreenState();
@@ -133,28 +123,43 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                       if (user?.role.name == 'admin') ...[
                         const SizedBox(height: 24),
                         const Text(
-                          "Update Status",
+                          "Assign Helpdesk",
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
                           ),
                         ),
                         const SizedBox(height: 12),
-                        _AdminStatusDropdown(
-                          currentStatus: currentTicket.status,
-                          onStatusChanged: (status) {
-                            if (status == TicketStatus.resolved) {
-                              ref
-                                  .read(ticketListProvider.notifier)
-                                  .resolveTicket(currentTicket.id);
-                            } else {
-                              ref
-                                  .read(ticketListProvider.notifier)
-                                  .updateStatus(currentTicket.id, status);
-                            }
-                          },
+                        _AdminAssignDropdown(
+                          ticketId: currentTicket.id,
+                          currentAssignedTo: currentTicket.assignedTo,
                         ),
-                        const Divider(height: 50),
+                        if (currentTicket.status == TicketStatus.resolved ||
+                            currentTicket.status == TicketStatus.inProgress) ...[
+                          const SizedBox(height: 24),
+                          const Text(
+                            "Update Status",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _AdminStatusDropdown(
+                            currentStatus: currentTicket.status,
+                            onStatusChanged: (status) {
+                              if (status == TicketStatus.resolved) {
+                                ref
+                                    .read(ticketListProvider.notifier)
+                                    .resolveTicket(currentTicket.id);
+                              } else {
+                                ref
+                                    .read(ticketListProvider.notifier)
+                                    .updateStatus(currentTicket.id, status);
+                              }
+                            },
+                          ),
+                        ],
                       ] else if (user?.role.name == 'helpdesk') ...[
                         const SizedBox(height: 24),
                         const Text(
@@ -194,8 +199,9 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                               ),
                           ],
                         ),
-                        const Divider(height: 50),
                       ],
+                      if (user?.role.name == 'admin' || user?.role.name == 'helpdesk')
+                        const Divider(height: 50),
 
                       const Text(
                         "Tracking Status",
@@ -307,14 +313,22 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
         itemCount: paths.length,
         itemBuilder: (context, index) {
           final url = _resolveAttachmentUrl(paths[index]);
-          return Container(
-            width: 120,
-            margin: const EdgeInsets.only(right: 12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
+          return GestureDetector(
+            onTap: () {
+              AttachmentPreviewDialog.show(
+                context,
+                url: url,
+              );
+            },
+            child: Container(
+              width: 120,
+              margin: const EdgeInsets.only(right: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Image.network(url, fit: BoxFit.cover),
             ),
-            clipBehavior: Clip.antiAlias,
-            child: Image.network(url, fit: BoxFit.cover),
           );
         },
       ),
@@ -584,10 +598,12 @@ class _AdminStatusDropdownState extends State<_AdminStatusDropdown> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Admin options: Open (reopen) and Resolved
+    // Admin options:
+    // - Open: only appears when ticket is Resolved (to reopen)
+    // - Resolved: only appears when ticket is In Progress
     final options = <TicketStatus>[
-      if (widget.currentStatus != TicketStatus.open) TicketStatus.open,
-      if (widget.currentStatus != TicketStatus.resolved) TicketStatus.resolved,
+      if (widget.currentStatus == TicketStatus.resolved) TicketStatus.open,
+      if (widget.currentStatus == TicketStatus.inProgress) TicketStatus.resolved,
     ];
 
     return Column(
@@ -645,6 +661,162 @@ class _AdminStatusDropdownState extends State<_AdminStatusDropdown> {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _AdminAssignDropdown extends ConsumerStatefulWidget {
+  final String ticketId;
+  final String? currentAssignedTo;
+
+  const _AdminAssignDropdown({
+    required this.ticketId,
+    this.currentAssignedTo,
+  });
+
+  @override
+  ConsumerState<_AdminAssignDropdown> createState() => _AdminAssignDropdownState();
+}
+
+class _AdminAssignDropdownState extends ConsumerState<_AdminAssignDropdown> {
+  String? _selectedHelpdeskId;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedHelpdeskId = widget.currentAssignedTo;
+  }
+
+  @override
+  void didUpdateWidget(covariant _AdminAssignDropdown oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentAssignedTo != widget.currentAssignedTo) {
+      setState(() {
+        _selectedHelpdeskId = widget.currentAssignedTo;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final helpdesksAsync = ref.watch(helpdeskListProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return helpdesksAsync.when(
+      loading: () => const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 8.0),
+          child: CircularProgressIndicator(),
+        ),
+      ),
+      error: (err, stack) => Text(
+        'Gagal memuat daftar helpdesk: $err',
+        style: const TextStyle(color: Colors.red),
+      ),
+      data: (helpdesks) {
+        if (helpdesks.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.orange),
+                SizedBox(width: 8),
+                Text('Belum ada akun helpdesk yang terdaftar.'),
+              ],
+            ),
+          );
+        }
+
+        // Check if current selected ID is in list, if not set to null
+        final hasMatch = helpdesks.any((h) => h.id == _selectedHelpdeskId);
+        if (!hasMatch) {
+          _selectedHelpdeskId = null;
+        }
+
+        final bool isChanged = _selectedHelpdeskId != widget.currentAssignedTo;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.grey.shade800 : Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                ),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedHelpdeskId,
+                  hint: const Text('Pilih Helpdesk...'),
+                  isExpanded: true,
+                  dropdownColor: isDark ? Colors.grey.shade800 : Colors.white,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black87,
+                    fontSize: 14,
+                  ),
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: null,
+                      child: Text('Belum Ditugaskan (Unassigned)'),
+                    ),
+                    ...helpdesks.map((h) {
+                      return DropdownMenuItem<String>(
+                        value: h.id,
+                        child: Text(h.name),
+                      );
+                    }),
+                  ],
+                  onChanged: (newId) {
+                    setState(() {
+                      _selectedHelpdeskId = newId;
+                    });
+                  },
+                ),
+              ),
+            ),
+            if (isChanged) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final selectedHelpdesk = helpdesks.firstWhere(
+                      (h) => h.id == _selectedHelpdeskId,
+                      orElse: () => UserModel(
+                        id: '',
+                        name: 'Belum Ditugaskan',
+                        email: '',
+                        role: UserRole.user,
+                      ),
+                    );
+
+                    await ref.read(ticketListProvider.notifier).assignTicket(
+                          widget.ticketId,
+                          _selectedHelpdeskId ?? '',
+                          selectedHelpdesk.name,
+                        );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text('Konfirmasi Penugasan'),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }

@@ -42,3 +42,9 @@ class CurrentUserNotifier extends Notifier<UserEntity?> {
     state = user;
   }
 }
+
+// Fetch list of helpdesks provider
+final helpdeskListProvider = FutureProvider<List<UserEntity>>((ref) async {
+  final authRepo = ref.watch(authRepositoryProvider);
+  return authRepo.getHelpdeskUsers();
+});

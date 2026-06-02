@@ -165,6 +165,24 @@ class TicketListNotifier extends AsyncNotifier<List<TicketEntity>> {
       state = AsyncValue.error(e, stack);
     }
   }
+
+  Future<void> assignTicket(String ticketId, String assignedTo, String helpdeskName) async {
+    try {
+      await ref.read(ticketRepositoryProvider).assignTicket(ticketId, assignedTo);
+
+      // Refresh data
+      final updatedTickets = await ref.read(ticketRepositoryProvider).getTickets();
+      state = AsyncValue.data(updatedTickets);
+
+      await NotificationService.showNotification(
+        id: ticketId.hashCode,
+        title: 'Tiket #${ticketId.toUpperCase()} Assigned',
+        body: 'Tiket telah ditugaskan ke $helpdeskName',
+      );
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+    }
+  }
 }
 
 final ticketListProvider =

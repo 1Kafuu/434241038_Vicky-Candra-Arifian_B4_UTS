@@ -11,6 +11,7 @@ abstract class AuthRemoteDataSource {
   });
   Future<Map<String, dynamic>> getCurrentUser(String token);
   Future<void> logout(String token);
+  Future<List<Map<String, dynamic>>> getHelpdesks(String token);
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
@@ -90,5 +91,24 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     if (response.statusCode != 200 || body['success'] != true) {
       throw Exception(body['message'] ?? 'Logout failed');
     }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getHelpdesks(String token) async {
+    final response = await client.get(
+      Uri.parse(ApiConstants.helpdesks),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final body = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && body['success'] == true) {
+      return List<Map<String, dynamic>>.from(body['data']);
+    }
+
+    throw Exception(body['message'] ?? 'Failed to fetch helpdesk list');
   }
 }
