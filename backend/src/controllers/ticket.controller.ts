@@ -189,8 +189,9 @@ export async function updateTicketStatus(req: Request, res: Response) {
         return res.status(403).json({ success: false, message: 'You can only update to in_progress or pending' });
       }
     } else if (user.role === 'admin') {
-      // Admin bisa apa aja, tapi status lain ditangani di resolve endpoint
-      if (body.status !== TicketStatus.in_progress && body.status !== TicketStatus.pending) {
+      // Admin bisa update in_progress, pending, atau reopen (open)
+      // Untuk resolve/close, gunakan /resolve endpoint
+      if (body.status !== TicketStatus.in_progress && body.status !== TicketStatus.pending && body.status !== TicketStatus.open) {
         return res.status(403).json({ success: false, message: 'Use /resolve endpoint to close ticket' });
       }
     } else {
@@ -205,13 +206,18 @@ export async function updateTicketStatus(req: Request, res: Response) {
       new_status: body.status,
     });
 
-    // Update ticket
+    // Update ticket — clear resolved_at when reopening
+    const updateData: any = {
+      status: body.status,
+      updated_at: new Date().toISOString(),
+    };
+    if (body.status === TicketStatus.open) {
+      updateData.resolved_at = null;
+    }
+
     const { data, error } = await supabase
       .from('tickets')
-      .update({
-        status: body.status,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('id', id)
       .select()
       .single();

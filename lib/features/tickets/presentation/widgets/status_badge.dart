@@ -16,6 +16,9 @@ class StatusBadge extends StatelessWidget {
       case TicketStatus.open:
         backgroundColor = Colors.blue.shade600;
         break;
+      case TicketStatus.assigned:
+        backgroundColor = Colors.indigo.shade600;
+        break;
       case TicketStatus.pending:
         backgroundColor = Colors.orange.shade900;
         break;
@@ -28,8 +31,6 @@ class StatusBadge extends StatelessWidget {
       case TicketStatus.closed:
         backgroundColor = Colors.grey.shade600;
         break;
-      default:
-        backgroundColor = Colors.grey;
     }
 
     return Container(
