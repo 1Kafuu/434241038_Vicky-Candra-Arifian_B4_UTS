@@ -7,6 +7,7 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/entities/ticket_entity.dart';
 import '../../domain/entities/ticket_enum.dart';
 import '../providers/ticket_provider.dart';
+import '../../../../core/widgets/attachment_preview.dart';
 
 class CreateTicketScreen extends ConsumerStatefulWidget {
   const CreateTicketScreen({super.key});
@@ -219,14 +220,22 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
                     }
                     return Stack(
                       children: [
-                        Container(
-                          width: 100,
-                          margin: const EdgeInsets.only(right: 8),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            image: DecorationImage(
-                              image: FileImage(_selectedImages[index]),
-                              fit: BoxFit.cover,
+                        GestureDetector(
+                          onTap: () {
+                            AttachmentPreviewDialog.show(
+                              context,
+                              file: _selectedImages[index],
+                            );
+                          },
+                          child: Container(
+                            width: 100,
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              image: DecorationImage(
+                                image: FileImage(_selectedImages[index]),
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           ),
                         ),

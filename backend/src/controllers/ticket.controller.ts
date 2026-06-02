@@ -113,10 +113,6 @@ export async function assignTicket(req: Request, res: Response) {
       return res.status(403).json({ success: false, message: 'Only admin can assign tickets' });
     }
 
-    if (!body.assignedTo) {
-      return res.status(400).json({ success: false, message: 'assignedTo is required' });
-    }
-
     // Get current ticket
     const { data: currentTicket, error: fetchError } = await supabase
       .from('tickets')
@@ -129,22 +125,30 @@ export async function assignTicket(req: Request, res: Response) {
       return res.status(404).json({ success: false, message: 'Ticket not found' });
     }
 
+    const isUnassign = !body.assignedTo;
+    const newStatus = isUnassign ? TicketStatus.open : TicketStatus.assigned;
+
     // Record history
     await supabase.from('ticket_history').insert({
       ticket_id: id,
       changed_by: user.id,
       old_status: currentTicket.status,
-      new_status: TicketStatus.assigned,
+      new_status: newStatus,
     });
 
     // Update ticket
+    const updateData: any = {
+      assigned_to: isUnassign ? null : body.assignedTo,
+      status: newStatus,
+      updated_at: new Date().toISOString(),
+    };
+    if (isUnassign) {
+      updateData.resolved_at = null;
+    }
+
     const { data, error } = await supabase
       .from('tickets')
-      .update({
-        assigned_to: body.assignedTo,
-        status: TicketStatus.assigned,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('id', id)
       .select()
       .single();

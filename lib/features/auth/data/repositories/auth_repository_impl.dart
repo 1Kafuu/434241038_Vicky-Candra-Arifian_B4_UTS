@@ -102,4 +102,17 @@ class AuthRepositoryImpl implements AuthRepository {
       await _clearToken();
     }
   }
+
+  @override
+  Future<List<UserEntity>> getHelpdeskUsers() async {
+    try {
+      final token = _getToken();
+      if (token == null) return [];
+
+      final list = await remoteDataSource.getHelpdesks(token);
+      return list.map((json) => UserModel.fromJson(json)).toList();
+    } catch (e) {
+      return [];
+    }
+  }
 }

@@ -22,4 +22,7 @@ abstract class TicketRepository {
 
   /// Resolve/close ticket (Admin only)
   Future<void> resolveTicket(String ticketId);
+
+  /// Assign support/helpdesk to ticket (Admin only)
+  Future<void> assignTicket(String ticketId, String assignedTo);
 }
