@@ -15,3 +15,8 @@ npm-debug.log*
 # TypeScript cache
 *.tsbuildinfo
 BACKEND_SETUP.md
+RLS_LIST.md
+SUPABASE_RLS_MIGRATION.sql
+
+#upload attachments
+uploads/attachments/*

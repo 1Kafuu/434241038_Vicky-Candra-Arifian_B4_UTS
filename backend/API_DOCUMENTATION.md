@@ -1,8 +1,8 @@
 # E-Ticketing API Documentation
 
 **Base URL:** `http://<your-ip>:3000/api`
-**Version:** 2.0.0
-**Last Updated:** 2026-06-02
+**Version:** 2.1.0
+**Last Updated:** 2026-06-03
 **Stack:** Node.js + Express + TypeScript + Supabase (PostgreSQL + Auth + Storage)
 
 ---
@@ -23,15 +23,14 @@
    - [Assign Ticket](#34-assign-ticket)
    - [Update Status](#35-update-status)
    - [Resolve Ticket](#36-resolve-ticket)
-   - [Ticket History](#37-ticket-history)
+   - [Close Ticket](#37-close-ticket)
+   - [Global History](#38-global-history)
 4. [Comments](#4-comments)
    - [List Comments](#41-list-comments)
    - [Add Comment](#42-add-comment)
    - [Delete Comment](#43-delete-comment)
 5. [Attachments](#5-attachments)
    - [Upload Attachment](#51-upload-attachment)
-   - [List Attachments](#52-list-attachments)
-   - [Delete Attachment](#53-delete-attachment)
 6. [System](#6-system)
    - [Health Check](#61-health-check)
 7. [Data Models](#7-data-models)
@@ -117,7 +116,7 @@ POST /api/auth/register
   "name": "Kafuu",
   "email": "user@mail.com",
   "password": "user123",
-  "role": "user"  // optional, defaults to "user"
+  "role": "user"
 }
 ```
 
@@ -319,13 +318,16 @@ Routes mounted at `/api/tickets`.
 
 | Method | Endpoint | Auth | Roles |
 |--------|----------|------|-------|
-| GET | `/tickets` | ✅ | all (filtered) |
+| GET | `/tickets` | ✅ | all (filtered by role) |
+| GET | `/tickets/history` | ✅ | all (filtered by role) |
 | GET | `/tickets/:id` | ✅ | all (with access check) |
 | POST | `/tickets` | ✅ | any |
 | POST | `/tickets/:id/assign` | ✅ | admin |
-| PUT | `/tickets/:id/status` | ✅ | helpdesk (assigned), admin |
+| PUT | `/tickets/:id/status` | ✅ | helpdesk (assigned only), admin |
 | POST | `/tickets/:id/resolve` | ✅ | admin |
-| GET | `/tickets/:id/history` | ✅ | all (with access check) |
+| POST | `/tickets/:id/close` | ✅ | admin (via `requireRole('admin')` middleware) |
+
+> ⚠️ Route ordering: `GET /tickets/history` MUST be defined before `GET /tickets/:id` to prevent `"history"` from being treated as a ticket ID.
 
 ### Status & Priority Enums
 
@@ -334,7 +336,7 @@ TicketStatus = "Open" | "Assigned" | "In Progress" | "Pending" | "Resolved" | "C
 TicketPriority = "Low" | "Medium" | "High" | "Urgent"
 ```
 
-> ⚠️ **Note**: Status values use **Title Case** in the database (e.g. `"In Progress"`), not snake_case. Make sure the Flutter client uses the exact same strings.
+> ⚠️ Status values use **Title Case** (e.g. `"In Progress"`), not snake_case. The Flutter client uses `TicketStatus.{open, assigned, inProgress, pending, resolved, closed}` which maps to these labels.
 
 ---
 
@@ -348,9 +350,13 @@ GET /api/tickets
 ```
 
 **Filtering by role:**
-- `user` → only tickets they created (`user_id == self`)
-- `helpdesk` → tickets assigned to them **OR** unassigned tickets
-- `admin` → all tickets
+| Role | Filter |
+|------|--------|
+| `user` | Only tickets they created (`user_id == self`) |
+| `helpdesk` | Tickets assigned to them **AND** status is one of `Assigned`, `In Progress`, `Pending`, or `Resolved` |
+| `admin` | All tickets |
+
+> 💡 Helpdesk cannot see `Open` (unassigned) tickets or `Closed` (terminal) tickets.
 
 **Response `200 OK`**
 ```json
@@ -392,9 +398,11 @@ GET /api/tickets/:id
 ```
 
 **Access checks:**
-- `user` → only own tickets
-- `helpdesk` → only assigned tickets
-- `admin` → any ticket
+| Role | Access |
+|------|--------|
+| `user` | Only own tickets |
+| `helpdesk` | Only assigned tickets (unassigned tickets also visible) |
+| `admin` | Any ticket |
 
 **Response `200 OK`**
 ```json
@@ -449,6 +457,10 @@ POST /api/tickets
 | description | string | ✅ | Detailed description |
 | priority | string | ❌ | One of `Low`, `Medium`, `High`, `Urgent` (default: `Medium`) |
 
+**Side effects:**
+- Sets `status = "Open"`, `user_id = caller.id`
+- Records a `ticket_history` entry with `action = "created"`, `updated_by = caller.id` (UUID)
+
 **Response `201 Created`**
 ```json
 {
@@ -502,7 +514,8 @@ To unassign:
 
 **Side effects:**
 - Sets `assigned_to` and changes status to `Assigned` (or `Open` if unassigning)
-- Records a `ticket_history` entry
+- Records a `ticket_history` entry with `action = "assigned"` or `"unassigned"`
+- `updated_by = caller.id` (admin's UUID)
 - Clears `resolved_at` if unassigning
 
 **Response `200 OK`**
@@ -524,7 +537,7 @@ To unassign:
 
 ### 3.5 Update Status
 
-Update ticket status. **Helpdesk** (only for tickets assigned to them, can only set `In Progress` or `Pending`). **Admin** (can set `In Progress`, `Pending`, or `Open` — for resolve, use the dedicated endpoint).
+Update ticket status.
 
 **Endpoint**
 ```
@@ -538,17 +551,20 @@ PUT /api/tickets/:id/status
 }
 ```
 
-**Allowed status transitions:**
+**Allowed target status per role:**
 
-| Role | Allowed Targets |
-|------|-----------------|
-| helpdesk | `In Progress`, `Pending` (only on assigned tickets) |
-| admin | `In Progress`, `Pending`, `Open` (reopen) |
-| user | ❌ forbidden |
+| Role | Allowed Targets | Restrictions |
+|------|-----------------|-------------|
+| `helpdesk` | `In Progress`, `Pending`, `Resolved` | Only on tickets assigned to them |
+| `admin` | `In Progress`, `Pending`, `Open` (reopen) | Any ticket |
+| `user` | ❌ forbidden | — |
+
+> ✅ Helpdesk can now set `Resolved` (new in v2.1.0).
+> ❌ Admin must use `/resolve` endpoint (section 3.6) to set `Resolved`, and `/close` endpoint (section 3.7) to set `Closed`.
 
 **Side effects:**
-- Records a `ticket_history` entry
-- Clears `resolved_at` when reopening (`Open`)
+- Records a `ticket_history` entry with action as the new status value
+- Clears `resolved_at` when reopening to `Open`
 
 **Response `200 OK`**
 ```json
@@ -563,7 +579,7 @@ PUT /api/tickets/:id/status
 |--------|---------|
 | 401 | No token provided / Invalid or expired token |
 | 403 | You can only update tickets assigned to you |
-| 403 | You can only update to in_progress or pending |
+| 403 | You can only update to in_progress, pending, or resolved |
 | 403 | Use /resolve endpoint to close ticket |
 | 403 | Users cannot update ticket status |
 | 404 | Ticket not found |
@@ -582,9 +598,9 @@ POST /api/tickets/:id/resolve
 **Request Body**: _none_
 
 **Side effects:**
-- Sets `status = "Resolved"`
-- Sets `resolved_at = <now>`
-- Records a `ticket_history` entry
+- Sets `status = "Resolved"`, `resolved_at = now()`
+- Records a `ticket_history` entry with `action = "resolved"`
+- `updated_by = caller.id` (admin's UUID)
 
 **Response `200 OK`**
 ```json
@@ -599,18 +615,62 @@ POST /api/tickets/:id/resolve
 |--------|---------|
 | 401 | No token provided / Invalid or expired token |
 | 403 | Only admin can resolve tickets |
+| 403 | Ticket is not assigned |
 | 404 | Ticket not found |
 
 ---
 
-### 3.7 Ticket History
+### 3.7 Close Ticket
 
-Get the full history of status changes for a ticket.
+Close a resolved ticket. **Admin only** (uses `requireRole('admin')` middleware). Only allowed when current status is `Resolved`.
 
 **Endpoint**
 ```
-GET /api/tickets/:id/history
+POST /api/tickets/:id/close
 ```
+
+**Request Body**: _none_
+
+**Side effects:**
+- Sets `status = "Closed"`
+- Records a `ticket_history` entry with `action = "closed"`
+- `updated_by = caller.id` (admin's UUID)
+
+**Response `200 OK`**
+```json
+{
+  "success": true,
+  "data": { /* updated ticket */ }
+}
+```
+
+**Error Responses**
+| Status | Message |
+|--------|---------|
+| 400 | Only resolved tickets can be closed |
+| 401 | No token provided / Invalid or expired token |
+| 403 | Forbidden (if role is not admin) |
+| 404 | Ticket not found |
+
+---
+
+### 3.8 Global History
+
+Get all ticket history across all tickets, filtered by role. **This is the primary history endpoint used by the Flutter app.**
+
+**Endpoint**
+```
+GET /api/tickets/history
+```
+
+**Filtering by role:**
+| Role | Filter |
+|------|--------|
+| `user` | Only history for tickets they created (via `tickets!inner` join on `user_id`) |
+| `helpdesk` | Only history for tickets assigned to them (via `tickets!inner` join on `assigned_to`) |
+| `admin` | All history entries |
+
+The response includes the actor's name via a `profiles!updated_by(name)` join. The field `updatedByName` contains the display name; `updatedBy` contains the UUID.
 
 **Response `200 OK`**
 ```json
@@ -620,31 +680,41 @@ GET /api/tickets/:id/history
     {
       "id": "uuid-h1",
       "ticketId": "uuid-1",
-      "changedBy": "uuid-user",
-      "oldStatus": null,
-      "newStatus": "Open",
-      "createdAt": "2026-05-28T12:00:00.000Z"
+      "action": "created",
+      "description": "Ticket has been succesfuly created",
+      "updatedBy": "uuid-actor",
+      "updatedByName": "Kafuu",
+      "timestamp": "2026-05-28T12:00:00.000Z"
     },
     {
       "id": "uuid-h2",
       "ticketId": "uuid-1",
-      "changedBy": "uuid-admin",
-      "oldStatus": "Open",
-      "newStatus": "Assigned",
-      "createdAt": "2026-05-28T13:00:00.000Z"
+      "action": "assigned",
+      "description": "Assigned to Helpdesk",
+      "updatedBy": "uuid-admin",
+      "updatedByName": "Administrator",
+      "timestamp": "2026-05-28T13:00:00.000Z"
     }
   ]
 }
 ```
 
+**History action values:**
+| Action | Triggered by | Description template |
+|--------|-------------|---------------------|
+| `created` | Any user creating a ticket | `"Ticket has been succesfuly created"` |
+| `assigned` | Admin assigns helpdesk | `"Assigned to {helpdeskName}"` |
+| `unassigned` | Admin unassigns helpdesk | `"Unassigned"` |
+| `in_progress` | Helpdesk/admin updates status | `"Status changed from X to Y"` |
+| `pending` | Helpdesk/admin updates status | `"Status changed from X to Y"` |
+| `resolved` | Admin or helpdesk resolves ticket | `"Ticket resolved by {user.name}"` |
+| `closed` | Admin closes resolved ticket | `"Ticket closed by {user.name}"` |
+
 **Error Responses**
 | Status | Message |
 |--------|---------|
 | 401 | No token provided / Invalid or expired token |
-| 403 | Access denied |
-| 404 | Ticket not found |
-
-> ℹ️ The history records `changedBy` as a user UUID, not a name. The client is responsible for resolving names if needed.
+| 500 | Internal server error |
 
 ---
 
@@ -696,8 +766,6 @@ GET /api/tickets/:id/comments
 }
 ```
 
-> 💡 Replies are identified by `parentCommentId`. The client should build a tree structure (the Flutter app does this in `_buildCommentTree`).
-
 **Error Responses**
 | Status | Message |
 |--------|---------|
@@ -720,7 +788,7 @@ POST /api/tickets/:id/comments
 ```json
 {
   "message": "Saya cek lokasi, mohon tunggu",
-  "parentCommentId": "uuid-c1"  // optional, for replies
+  "parentCommentId": "uuid-c1"
 }
 ```
 
@@ -780,21 +848,19 @@ DELETE /api/tickets/:id/comments/:commentId
 | 403 | You can only delete your own comments |
 | 404 | Comment not found |
 
-> ⚠️ **Note**: Deleting a parent comment does NOT cascade-delete its replies. Replies become orphans (still in DB with dangling `parent_comment_id`). The client should handle this when rendering the tree.
+> ⚠️ Deleting a parent comment does NOT cascade-delete its replies. Replies become orphans (still in DB with dangling `parent_comment_id`). The client should handle this when rendering the tree.
 
 ---
 
 ## 5. Attachments
 
-Routes mounted at `/api/tickets/:id/attachments` (upload/list) and `/api/attachments` (delete). Files stored in `/uploads/attachments/`.
+Routes mounted at `/api/tickets/:id/attachments`. Files stored in `/uploads/attachments/`.
 
-> 🔒 **All attachment endpoints require authentication** (`Authorization: Bearer <token>`). Added in v2.0.1 to close the critical security gap from v2.0.0 where these routes were public.
+> 🔒 All attachment endpoints require authentication (`Authorization: Bearer <token>`).
 
 | Method | Endpoint | Auth | Roles |
 |--------|----------|------|-------|
 | POST | `/tickets/:id/attachments` | ✅ | all (with access check) |
-| GET | `/tickets/:id/attachments` | ✅ | all (with access check) |
-| DELETE | `/attachments?ticketId=...&url=...` | ✅ | owner OR admin |
 
 **File upload constraints:**
 - Max size: 10 MB
@@ -837,63 +903,7 @@ POST /api/tickets/:id/attachments
 | 413 | File too large (exceeds 10MB) |
 | 500 | Internal server error |
 
-> ⚠️ The full URL for the uploaded file is `<base>/uploads/attachments/<filename>`. The client constructs this from `storageConfig.baseUrl` + filename.
-
----
-
-### 5.2 List Attachments
-
-List attachment paths for a ticket.
-
-**Endpoint**
-```
-GET /api/tickets/:id/attachments
-```
-
-**Response `200 OK`**
-```json
-{
-  "attachments": [
-    "uploads/attachments/1717360000-abc123.jpg",
-    "uploads/attachments/1717360001-def456.png"
-  ]
-}
-```
-
-**Error Responses**
-| Status | Message |
-|--------|---------|
-| 500 | Internal server error |
-
----
-
-### 5.3 Delete Attachment
-
-Remove an attachment from a ticket and delete the file from disk.
-
-**Endpoint**
-```
-DELETE /api/attachments?ticketId=<uuid>&url=<path>
-```
-
-**Query Parameters**
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| ticketId | string | ✅ | Ticket UUID |
-| url | string | ✅ | The attachment path returned from upload (e.g. `uploads/attachments/1717360000-abc123.jpg`) |
-
-**Response `200 OK`**
-```json
-{
-  "message": "Attachment deleted successfully"
-}
-```
-
-**Error Responses**
-| Status | Message |
-|--------|---------|
-| 400 | ticketId and url are required |
-| 500 | Internal server error |
+> The full URL for the uploaded file is `<base>/uploads/attachments/<filename>`. The client constructs this from `storageConfig.baseUrl` + filename.
 
 ---
 
@@ -971,10 +981,11 @@ interface Comment {
 interface TicketHistory {
   id: string;
   ticketId: string;
-  changedBy: string;         // UUID, not name
-  oldStatus: string | null;  // null for initial creation
-  newStatus: string;
-  createdAt: string;
+  action: string;              // "created" | "assigned" | "unassigned" | "in_progress" | "pending" | "resolved" | "closed"
+  description: string;         // Human-readable description
+  updatedBy: string;           // Actor's UUID (from profiles.id)
+  updatedByName: string;       // Actor's display name (resolved via join)
+  timestamp: string;           // ISO 8601
 }
 ```
 
@@ -993,7 +1004,7 @@ All error responses follow this format:
 
 | Status Code | Meaning | Common Causes |
 |-------------|---------|---------------|
-| 400 | Bad Request | Missing or invalid fields, validation failed |
+| 400 | Bad Request | Missing or invalid fields, validation failed, illegal status transition |
 | 401 | Unauthorized | Missing or invalid/expired token |
 | 403 | Forbidden | Insufficient role permissions, access denied to resource |
 | 404 | Not Found | Resource doesn't exist |
@@ -1006,20 +1017,22 @@ All error responses follow this format:
 
 | Role | Description | Permissions |
 |------|-------------|-------------|
-| `user` | Regular user | • Create tickets<br>• View own tickets<br>• Add comments on own tickets<br>• Delete own comments |
-| `helpdesk` | Support staff | • View assigned tickets + unassigned tickets<br>• Update status of assigned tickets to `In Progress` or `Pending`<br>• Add comments on assigned tickets<br>• Delete own comments |
-| `admin` | Administrator | • All of the above +<br>• View all tickets<br>• Assign tickets to helpdesks<br>• Update any ticket status (except resolve via PUT)<br>• Resolve tickets<br>• Delete any comment |
+| `user` | Regular user | • Create tickets<br>• View own tickets<br>• Add comments on own tickets<br>• Delete own comments<br>• View global history for own tickets |
+| `helpdesk` | Support staff | • View assigned tickets (status: Assigned, In Progress, Pending, Resolved)<br>• Update status of assigned tickets to `In Progress`, `Pending`, or `Resolved`<br>• Add comments on assigned tickets<br>• Delete own comments<br>• View global history for assigned tickets |
+| `admin` | Administrator | • All of the above +<br>• View all tickets<br>• Assign tickets to helpdesks<br>• Update any ticket status (In Progress, Pending, Open)<br>• Resolve tickets (POST /resolve)<br>• Close resolved tickets (POST /close)<br>• Delete any comment<br>• View all global history |
 
-### Status Transition Matrix
+### Status Transition Summary
 
-| From → To | Open | Assigned | In Progress | Pending | Resolved | Closed |
-|-----------|:----:|:--------:|:-----------:|:-------:|:--------:|:------:|
-| **Open** | — | admin | admin | admin | admin (via /resolve) | — |
-| **Assigned** | — | — | helpdesk/admin | helpdesk/admin | admin (via /resolve) | — |
-| **In Progress** | admin (reopen) | — | — | helpdesk/admin | admin (via /resolve) | — |
-| **Pending** | admin (reopen) | — | helpdesk/admin | — | admin (via /resolve) | — |
-| **Resolved** | admin (reopen) | admin | — | — | — | — |
-| **Closed** | — | — | — | — | — | — |
+| Current Status | Admin can set via... | Helpdesk can set via... |
+|---------------|---------------------|------------------------|
+| **Open** | PUT → In Progress/Pending/Open<br>POST → /resolve<br>POST → /assign (→ Assigned) | ❌ (not assigned) |
+| **Assigned** | PUT → In Progress/Pending/Open<br>POST → /resolve<br>POST → /close | PUT → In Progress/Pending/Resolved |
+| **In Progress** | PUT → Pending/Open<br>POST → /resolve<br>POST → /close | PUT → Pending/Resolved |
+| **Pending** | PUT → In Progress/Open<br>POST → /resolve<br>POST → /close | PUT → In Progress/Resolved |
+| **Resolved** | PUT → Open (reopen)<br>**POST → /close** ✅ | PUT → In Progress (re-open) |
+| **Closed** | POST → /assign (→ Open)<br>PUT → Open (reopen) | ❌ |
+
+> ℹ️ **/close** is only allowed when status is `Resolved` (returns 400 otherwise).
 
 ---
 
@@ -1041,43 +1054,29 @@ Default users for development and testing (created in Supabase via seed script):
 
 These are issues discovered during code review. They should be fixed before production deployment.
 
-### 🔴 Security
-
-| # | Issue | Location | Status | Impact |
-|---|-------|----------|--------|--------|
-| 1 | ~~**Attachment routes are NOT protected by `authMiddleware`**~~ — anyone can upload, list, or delete attachments without authentication. | `backend/src/routes/attachment.routes.ts` | ✅ **Fixed in v2.0.1** — `router.use(authMiddleware)` added | Was Critical: data exposure, unauthorized uploads, arbitrary file deletion |
-| 1b | **Comment reply broken** — `addComment` uses `body.parentId` but `CreateCommentRequest` defines `parentCommentId`. TypeScript compile error, replies silently fail at runtime. | `backend/src/controllers/comment.controller.ts:95,99` | ❌ **Open** | High: nested reply feature does not work |
-| 2 | **No `requireRole` guard on assign/resolve** — controllers do manual role checks which can be missed. | `backend/src/controllers/ticket.controller.ts` | ❌ Open | Medium: works currently but error-prone to maintain |
-
-### 🟡 API Consistency
+### 🟠 API Consistency
 
 | # | Issue | Location | Impact |
 |---|-------|----------|--------|
-| 3 | **Health endpoint at `/health`, not `/api/health`** — inconsistent with the rest of the API. | `backend/src/app.ts` | Low: minor inconsistency |
-| 4 | **Attachment response uses different envelope** — `{"message": ..., "attachments": [...]}` without `success` flag, unlike other endpoints. | `backend/src/controllers/attachment.controller.ts` | Low: breaks the `success`/`data` pattern |
-| 5 | **Attachment delete returns generic 200 even if file didn't exist** — uses `existsSync` check, no DB rollback if disk delete fails. | `attachment.controller.ts` `delete` | Low: race condition |
+| 1 | **Health endpoint at `/health`, not `/api/health`** — inconsistent with the rest of the API. | `backend/src/app.ts` | Low: minor inconsistency |
+| 2 | **Attachment response uses different envelope** — `{"message": ..., "attachments": [...]}` without `success` flag, unlike other endpoints. | `backend/src/controllers/attachment.controller.ts` | Low: breaks the `success`/`data` pattern |
+| 3 | **No `requireRole` guard on assign/resolve routes** — controllers do manual role checks which can be missed. | `backend/src/routes/ticket.routes.ts` | Medium: works currently but error-prone |
+| 5 | **Comment replies become orphans on parent delete** — no cascade or soft-delete. | `comment.controller.ts` `deleteComment` | Low: client must handle |
 
 ### 🟠 Frontend Integration
 
 | # | Issue | Detail |
 |---|-------|--------|
-| 6 | **History `changedBy` is a UUID, not a name** — Flutter `TicketHistoryEntity` may need a separate name lookup. | `ticket_history.model.ts` |
-| 7 | **No pagination** on `GET /tickets` — can be slow with many tickets. | `ticket.controller.ts` `getTickets` |
-| 8 | **No search/filter** on `GET /tickets` — Flutter has a search bar in dashboard but no backend support. | same |
-| 9 | **Comment replies become orphans on parent delete** — no cascade. | `comment.controller.ts` `deleteComment` |
-| 10 | **Flutter `getTicketHistory` exists in datasource but is never called from UI** — only local fallback data is used. | `lib/features/tickets/data/datasources/ticket_remote_datasource.dart:19` |
-| 11 | **Flutter `getTicketById` exists in datasource but is never called from UI** — uses list data instead. | same file, line 10 |
+| 6 | **No pagination** on `GET /tickets` — can be slow with many tickets. | `ticket.controller.ts` `getTickets` |
+| 7 | **No search/filter** on `GET /tickets` — Flutter has a search bar in dashboard but no backend support. | same |
 
 ### 🟢 Recommended Fixes (Priority Order)
 
-1. **Fix `addComment` reply bug** — change `body.parentId` to `body.parentCommentId` in `comment.controller.ts:95,99`. (High — compile error + feature broken)
-2. **Use `requireRole` middleware for assign/resolve** instead of inline checks
-3. **Standardize attachment response envelope** to `{ success, message, data }`
-4. **Add pagination params** to `GET /tickets` (e.g. `?page=1&limit=20`)
-5. **Add search param** to `GET /tickets` (e.g. `?q=printer`)
-6. **Add `createdAt` to history response** for consistent timestamps (it already has it — verify frontend parses it)
-7. **Cascade or soft-delete comment replies** when parent is deleted
-8. **Connect Flutter `getTicketById` and `getTicketHistory` to UI**
+1. **Add `requireRole('admin')` middleware** to `/assign` and `/resolve` routes
+2. **Add pagination params** to `GET /tickets` (`?page=1&limit=20`)
+3. **Add search param** to `GET /tickets` (`?q=printer`)
+4. **Cascade or soft-delete comment replies** when parent is deleted
+5. **Standardize attachment response envelope** to `{ success, message, data }`
 
 ---
 
@@ -1087,8 +1086,9 @@ These are issues discovered during code review. They should be fixed before prod
 |---------|------|---------|
 | 1.0.0 | 2026-05-28 | Initial auth endpoints |
 | 2.0.0 | 2026-06-02 | Full API surface: tickets, comments, attachments + role matrix + data models + known issues |
-| 2.0.1 | 2026-06-02 | **Security fix:** Added `authMiddleware` to all attachment routes. **Bug discovered:** `addComment` uses `body.parentId` instead of `body.parentCommentId` — reply feature broken. |
+| 2.0.1 | 2026-06-02 | **Security fix:** Added `authMiddleware` to all attachment routes |
+| **2.1.0** | **2026-06-03** | **New endpoints:** `POST /tickets/:id/close` (admin close resolved tickets), `GET /tickets/history` (global role-filtered history). **Updated:** Helpdesk can now set `Resolved` status. **Data model change:** `TicketHistory` now uses `action`, `description`, `updatedBy` (UUID), `updatedByName` (from join), `timestamp` — replaces old `changedBy`/`oldStatus`/`newStatus`/`createdAt`. **Fixed:** Comment reply bug (`parentCommentId` now correctly used). |
 
 ---
 
-*Last reviewed: 2026-06-02*
+*Last reviewed: 2026-06-03*

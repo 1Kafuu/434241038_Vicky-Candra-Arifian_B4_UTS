@@ -1,4 +1,4 @@
-import { supabase } from '../config/db';
+import { supabaseAdmin } from '../config/db';
 
 export enum TicketStatus {
   open = 'Open',
@@ -82,7 +82,7 @@ export function mapToTicket(row: TicketRow): Ticket {
 export const ticketModel = {
   async addAttachment(ticketId: string, url: string): Promise<Ticket> {
     // Get current attachments
-    const { data: current, error: fetchError } = await supabase
+    const { data: current, error: fetchError } = await supabaseAdmin
       .from('tickets')
       .select('attachments')
       .eq('id', ticketId)
@@ -94,31 +94,7 @@ export const ticketModel = {
     const attachments = current?.attachments || [];
     attachments.push(url);
 
-    const { data, error } = await supabase
-      .from('tickets')
-      .update({ attachments, updated_at: new Date().toISOString() })
-      .eq('id', ticketId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return mapToTicket(data);
-  },
-
-  async removeAttachment(ticketId: string, url: string): Promise<Ticket> {
-    // Get current attachments
-    const { data: current, error: fetchError } = await supabase
-      .from('tickets')
-      .select('attachments')
-      .eq('id', ticketId)
-      .maybeSingle();
-
-    if (fetchError) throw fetchError;
-    if (!current) throw new Error('Ticket not found');
-
-    const attachments = (current?.attachments || []).filter((a: string) => a !== url);
-
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('tickets')
       .update({ attachments, updated_at: new Date().toISOString() })
       .eq('id', ticketId)
