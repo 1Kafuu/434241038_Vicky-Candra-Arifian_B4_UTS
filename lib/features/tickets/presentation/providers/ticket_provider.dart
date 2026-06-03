@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import '../../domain/entities/ticket_entity.dart';
 import '../../domain/entities/ticket_enum.dart';
 import '../../domain/entities/comment_entity.dart';
+import '../../domain/entities/ticket_history_entity.dart';
 import '../../domain/repositories/ticket_repository.dart';
 import '../../data/repositories/ticket_repository_impl.dart';
 import '../../data/datasources/ticket_local_data_source.dart';
@@ -166,6 +167,24 @@ class TicketListNotifier extends AsyncNotifier<List<TicketEntity>> {
     }
   }
 
+  Future<void> closeTicket(String ticketId) async {
+    try {
+      await ref.read(ticketRepositoryProvider).closeTicket(ticketId);
+
+      // Refresh data
+      final updatedTickets = await ref.read(ticketRepositoryProvider).getTickets();
+      state = AsyncValue.data(updatedTickets);
+
+      await NotificationService.showNotification(
+        id: ticketId.hashCode,
+        title: 'Tiket #${ticketId.toUpperCase()} Closed',
+        body: 'Tiket telah ditutup secara resmi',
+      );
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+    }
+  }
+
   Future<void> deleteComment(String ticketId, String commentId) async {
     try {
       final repo = ref.read(ticketRepositoryProvider);
@@ -254,4 +273,15 @@ final ticketStatsProvider = Provider<Map<String, int>>((ref) {
       'closed': 0,
     },
   );
+});
+
+// Provider untuk list history (semua tiket, di-filter by role di backend)
+final historyListProvider = FutureProvider<List<TicketHistoryEntity>>((ref) async {
+  return ref.read(ticketRepositoryProvider).getAllHistory();
+});
+
+// Provider untuk detail satu tiket (family by ID)
+final ticketDetailProvider =
+    FutureProvider.family<TicketEntity?, String>((ref, ticketId) async {
+  return ref.read(ticketRepositoryProvider).getTicketById(ticketId);
 });

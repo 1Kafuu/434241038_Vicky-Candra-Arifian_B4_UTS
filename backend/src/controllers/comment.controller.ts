@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { supabase, supabaseAdmin } from '../config/db';
+import { supabaseAdmin } from '../config/db';
 import { Comment, mapToComment, CreateCommentRequest } from '../models/comment.model';
 import { User } from '../models/user.model';
 
@@ -10,7 +10,7 @@ export async function getComments(req: Request, res: Response) {
     const user = (req as any).user as User;
 
     // Check ticket exists and user has access
-    const { data: ticket, error: ticketError } = await supabase
+    const { data: ticket, error: ticketError } = await supabaseAdmin
       .from('tickets')
       .select('*')
       .eq('id', ticketId)
@@ -30,7 +30,7 @@ export async function getComments(req: Request, res: Response) {
     }
 
     // Get comments with user info
-    const { data: comments, error } = await supabase
+    const { data: comments, error } = await supabaseAdmin
       .from('comments')
       .select('*')
       .eq('ticket_id', ticketId)
@@ -72,7 +72,7 @@ export async function addComment(req: Request, res: Response) {
     }
 
     // Check ticket exists and user has access
-    const { data: ticket, error: ticketError } = await supabase
+    const { data: ticket, error: ticketError } = await supabaseAdmin
       .from('tickets')
       .select('*')
       .eq('id', ticketId)
@@ -93,7 +93,7 @@ export async function addComment(req: Request, res: Response) {
 
     // If replying to a comment, verify parent exists
     if (body.parentCommentId) {
-      const { data: parentComment } = await supabase
+      const { data: parentComment } = await supabaseAdmin
         .from('comments')
         .select('id')
         .eq('id', body.parentCommentId)
@@ -105,7 +105,7 @@ export async function addComment(req: Request, res: Response) {
     }
 
     // Create comment
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('comments')
       .insert({
         ticket_id: ticketId,
@@ -137,7 +137,7 @@ export async function deleteComment(req: Request, res: Response) {
     const user = (req as any).user as User;
 
     // Get comment
-    const { data: comment, error: fetchError } = await supabase
+    const { data: comment, error: fetchError } = await supabaseAdmin
       .from('comments')
       .select('*')
       .eq('id', commentId)
@@ -155,7 +155,7 @@ export async function deleteComment(req: Request, res: Response) {
     }
 
     // Delete comment
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('comments')
       .delete()
       .eq('id', commentId);

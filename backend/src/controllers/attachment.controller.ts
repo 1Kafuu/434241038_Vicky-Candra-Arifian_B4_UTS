@@ -1,7 +1,5 @@
 import { Request, Response } from 'express';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import { storageConfig } from '../config/storage';
 import { ticketModel } from '../models/ticket.model';
 
@@ -59,54 +57,4 @@ export const attachmentController = {
     }
   },
 
-  // GET /api/tickets/:id/attachments - Get attachments list
-  async listByTicket(req: Request, res: Response) {
-    try {
-      const ticketId = req.params.id;
-
-      const { data, error } = await (await import('../config/db')).supabase
-        .from('tickets')
-        .select('attachments')
-        .eq('id', ticketId)
-        .single();
-
-      if (error) throw error;
-
-      res.json({
-        attachments: data?.attachments || [],
-      });
-    } catch (error: any) {
-      console.error('List error:', error);
-      res.status(500).json({ error: error.message });
-    }
-  },
-
-  // DELETE /api/attachments/:id - Delete attachment by URL
-  async delete(req: Request, res: Response) {
-    try {
-      const { ticketId, url } = req.query as { ticketId: string; url: string };
-
-      if (!ticketId || !url) {
-        res.status(400).json({ error: 'ticketId and url are required' });
-        return;
-      }
-
-      // Ambil filename dari URL
-      const filename = path.basename(url);
-      const filePath = path.join(storageConfig.uploadDir, filename);
-
-      // Hapus file dari disk jika ada
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-
-      // Hapus dari array di tickets
-      await ticketModel.removeAttachment(ticketId, url);
-
-      res.json({ message: 'Attachment deleted successfully' });
-    } catch (error: any) {
-      console.error('Delete error:', error);
-      res.status(500).json({ error: error.message });
-    }
-  },
 };

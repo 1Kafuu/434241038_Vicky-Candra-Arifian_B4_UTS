@@ -1,30 +1,19 @@
 class TicketHistoryEntity {
   final String id;
   final String ticketId;
-  final String changedBy;
-  final String? oldStatus;
-  final String newStatus;
-  final DateTime createdAt;
+  final String action;
+  final String description;
+  final String updatedBy;       // UUID actor
+  final String updatedByName;   // nama actor (dari join profiles)
+  final DateTime timestamp;
 
   const TicketHistoryEntity({
     required this.id,
     required this.ticketId,
-    required this.changedBy,
-    this.oldStatus,
-    required this.newStatus,
-    required this.createdAt,
+    required this.action,
+    required this.description,
+    required this.updatedBy,
+    required this.updatedByName,
+    required this.timestamp,
   });
-
-  String get action {
-    if (oldStatus == null) return 'Created';
-    return 'Status Updated';
-  }
-
-  String get description {
-    if (oldStatus == null) return 'Ticket created with status $newStatus';
-    return 'Status changed from $oldStatus to $newStatus';
-  }
-
-  String get updatedBy => changedBy;
-  DateTime get timestamp => createdAt;
 }

@@ -14,7 +14,8 @@ class ApiConstants {
   static String ticketAssign(String id) => '$baseUrl/tickets/$id/assign';
   static String ticketStatus(String id) => '$baseUrl/tickets/$id/status';
   static String ticketResolve(String id) => '$baseUrl/tickets/$id/resolve';
-  static String ticketHistory(String id) => '$baseUrl/tickets/$id/history';
+  static String ticketClose(String id) => '$baseUrl/tickets/$id/close';
+  static const String history = '$baseUrl/tickets/history';
   static String ticketComments(String id) => '$baseUrl/tickets/$id/comments';
   static String ticketAttachments(String id) => '$baseUrl/tickets/$id/attachments';
 }
