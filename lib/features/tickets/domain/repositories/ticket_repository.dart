@@ -2,10 +2,14 @@ import 'package:e_ticketing/features/tickets/domain/entities/ticket_enum.dart';
 
 import '../entities/ticket_entity.dart';
 import '../entities/comment_entity.dart';
+import '../entities/ticket_history_entity.dart';
 
 abstract class TicketRepository {
   /// Mengambil semua daftar tiket
   Future<List<TicketEntity>> getTickets();
+
+  /// Ambil satu tiket berdasarkan ID (online only)
+  Future<TicketEntity?> getTicketById(String ticketId);
 
   /// Membuat tiket baru
   Future<TicketEntity?> createTicket(TicketEntity ticket);
@@ -30,6 +34,12 @@ abstract class TicketRepository {
   /// Resolve/close ticket (Admin only)
   Future<void> resolveTicket(String ticketId);
 
+  /// Menutup tiket setelah Resolved (Admin only)
+  Future<void> closeTicket(String ticketId);
+
   /// Assign support/helpdesk to ticket (Admin only)
   Future<void> assignTicket(String ticketId, String assignedTo);
+
+  /// Ambil semua history tiket (filtered by role di backend)
+  Future<List<TicketHistoryEntity>> getAllHistory();
 }

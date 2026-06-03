@@ -16,12 +16,12 @@ abstract class TicketRemoteDataSource {
   Future<TicketModel> assignTicket(String token, String ticketId, String assignedTo);
   Future<TicketModel> updateTicketStatus(String token, String ticketId, String status);
   Future<TicketModel> resolveTicket(String token, String ticketId);
-  Future<List<Map<String, dynamic>>> getTicketHistory(String token, String ticketId);
+  Future<TicketModel> closeTicket(String token, String ticketId);
+  Future<List<Map<String, dynamic>>> getAllHistory(String token);
   Future<List<Map<String, dynamic>>> getComments(String token, String ticketId);
   Future<Map<String, dynamic>> addComment(String token, String ticketId, String content, {String? parentCommentId});
   Future<void> deleteComment(String token, String ticketId, String commentId);
   Future<Map<String, dynamic>> uploadAttachment(String token, String ticketId, List<int> fileBytes, String filename);
-  Future<List<String>> getAttachments(String token, String ticketId);
 }
 
 class TicketRemoteDataSourceImpl implements TicketRemoteDataSource {
@@ -131,9 +131,23 @@ class TicketRemoteDataSourceImpl implements TicketRemoteDataSource {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> getTicketHistory(String token, String ticketId) async {
+  Future<TicketModel> closeTicket(String token, String ticketId) async {
+    final response = await client.post(
+      Uri.parse(ApiConstants.ticketClose(ticketId)),
+      headers: _headers(token),
+    );
+
+    final body = jsonDecode(response.body);
+    if (response.statusCode == 200 && body['success'] == true) {
+      return _parseTicket(body['data']);
+    }
+    throw Exception(body['message'] ?? 'Failed to close ticket');
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getAllHistory(String token) async {
     final response = await client.get(
-      Uri.parse(ApiConstants.ticketHistory(ticketId)),
+      Uri.parse(ApiConstants.history),
       headers: _headers(token),
     );
 
@@ -141,7 +155,7 @@ class TicketRemoteDataSourceImpl implements TicketRemoteDataSource {
     if (response.statusCode == 200 && body['success'] == true) {
       return List<Map<String, dynamic>>.from(body['data']);
     }
-    throw Exception(body['message'] ?? 'Failed to fetch history');
+    throw Exception(body['message'] ?? 'Failed to fetch all history');
   }
 
   @override
@@ -248,20 +262,6 @@ class TicketRemoteDataSourceImpl implements TicketRemoteDataSource {
       return body;
     }
     throw Exception(body['error'] ?? 'Failed to upload attachment');
-  }
-
-  @override
-  Future<List<String>> getAttachments(String token, String ticketId) async {
-    final response = await client.get(
-      Uri.parse(ApiConstants.ticketAttachments(ticketId)),
-      headers: _headers(token),
-    );
-
-    final body = jsonDecode(response.body);
-    if (response.statusCode == 200) {
-      return List<String>.from(body['attachments'] ?? []);
-    }
-    throw Exception(body['error'] ?? 'Failed to fetch attachments');
   }
 
   // Helper to parse ticket from JSON

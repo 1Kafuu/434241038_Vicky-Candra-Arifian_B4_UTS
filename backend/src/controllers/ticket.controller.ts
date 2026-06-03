@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { supabase } from '../config/db';
+import { supabaseAdmin } from '../config/db';
 import { Ticket, TicketStatus, TicketPriority, mapToTicket, CreateTicketRequest, UpdateStatusRequest, AssignTicketRequest } from '../models/ticket.model';
 import { mapToTicketHistory, TicketHistory } from '../models/ticket_history.model';
 import { User } from '../models/user.model';
@@ -9,7 +9,7 @@ export async function getTickets(req: Request, res: Response) {
   try {
     const user = (req as any).user as User;
     
-    let query = supabase
+    let query = supabaseAdmin
       .from('tickets')
       .select('*')
       .order('created_at', { ascending: false });
@@ -19,8 +19,10 @@ export async function getTickets(req: Request, res: Response) {
       // User hanya bisa lihat ticket miliknya
       query = query.eq('user_id', user.id);
     } else if (user.role === 'helpdesk') {
-      // Helpdesk bisa lihat ticket yang di-assign ke dia ATAU yang belum di-assign
-      query = query.or(`assigned_to.eq.${user.id},assigned_to.is.null`);
+      // Helpdesk bisa lihat ticket yang di-assign ke dia dengan status assigned, in_progress, pending, atau resolved
+      query = query
+        .eq('assigned_to', user.id)
+        .in('status', [TicketStatus.assigned, TicketStatus.in_progress, TicketStatus.pending, TicketStatus.resolved]);
     }
     // Admin bisa lihat semua
 
@@ -42,7 +44,7 @@ export async function getTicketById(req: Request, res: Response) {
     const { id } = req.params;
     const user = (req as any).user as User;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('tickets')
       .select('*')
       .eq('id', id)
@@ -80,7 +82,7 @@ export async function createTicket(req: Request, res: Response) {
       return res.status(400).json({ success: false, message: 'Title and description are required' });
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('tickets')
       .insert({
         title: body.title,
@@ -93,6 +95,15 @@ export async function createTicket(req: Request, res: Response) {
       .single();
 
     if (error) throw error;
+
+    // Record history — ticket creation
+    await supabaseAdmin.from('ticket_history').insert({
+      ticket_id: data.id,
+      action: 'created',
+      description: 'Ticket has been succesfuly created',
+      updated_by: user.id,
+      timestamp: new Date().toISOString(),
+    });
 
     const ticket = mapToTicket(data);
     res.status(201).json({ success: true, data: ticket });
@@ -114,7 +125,7 @@ export async function assignTicket(req: Request, res: Response) {
     }
 
     // Get current ticket
-    const { data: currentTicket, error: fetchError } = await supabase
+    const { data: currentTicket, error: fetchError } = await supabaseAdmin
       .from('tickets')
       .select('*')
       .eq('id', id)
@@ -128,12 +139,24 @@ export async function assignTicket(req: Request, res: Response) {
     const isUnassign = !body.assignedTo;
     const newStatus = isUnassign ? TicketStatus.open : TicketStatus.assigned;
 
+    // Resolve helpdesk name for the history description (best-effort)
+    let helpdeskName = 'helpdesk';
+    if (!isUnassign && body.assignedTo) {
+      const { data: hd } = await supabaseAdmin
+        .from('profiles')
+        .select('name')
+        .eq('id', body.assignedTo)
+        .single();
+      if (hd?.name) helpdeskName = hd.name;
+    }
+
     // Record history
-    await supabase.from('ticket_history').insert({
+    await supabaseAdmin.from('ticket_history').insert({
       ticket_id: id,
-      changed_by: user.id,
-      old_status: currentTicket.status,
-      new_status: newStatus,
+      action: isUnassign ? 'unassigned' : 'assigned',
+      description: isUnassign ? 'Unassigned' : `Assigned to ${helpdeskName}`,
+      updated_by: user.id,
+      timestamp: new Date().toISOString(),
     });
 
     // Update ticket
@@ -146,7 +169,7 @@ export async function assignTicket(req: Request, res: Response) {
       updateData.resolved_at = null;
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('tickets')
       .update(updateData)
       .eq('id', id)
@@ -171,7 +194,7 @@ export async function updateTicketStatus(req: Request, res: Response) {
     const body = req.body as UpdateStatusRequest;
 
     // Get current ticket
-    const { data: currentTicket, error: fetchError } = await supabase
+    const { data: currentTicket, error: fetchError } = await supabaseAdmin
       .from('tickets')
       .select('*')
       .eq('id', id)
@@ -188,9 +211,9 @@ export async function updateTicketStatus(req: Request, res: Response) {
       if (currentTicket.assigned_to !== user.id) {
         return res.status(403).json({ success: false, message: 'You can only update tickets assigned to you' });
       }
-      // Helpdesk hanya bisa ubah ke in_progress atau pending
-      if (body.status !== TicketStatus.in_progress && body.status !== TicketStatus.pending) {
-        return res.status(403).json({ success: false, message: 'You can only update to in_progress or pending' });
+      // Helpdesk hanya bisa ubah ke in_progress, pending, atau resolved
+      if (body.status !== TicketStatus.in_progress && body.status !== TicketStatus.pending && body.status !== TicketStatus.resolved) {
+        return res.status(403).json({ success: false, message: 'You can only update to in_progress, pending, or resolved' });
       }
     } else if (user.role === 'admin') {
       // Admin bisa update in_progress, pending, atau reopen (open)
@@ -203,11 +226,12 @@ export async function updateTicketStatus(req: Request, res: Response) {
     }
 
     // Record history
-    await supabase.from('ticket_history').insert({
+    await supabaseAdmin.from('ticket_history').insert({
       ticket_id: id,
-      changed_by: user.id,
-      old_status: currentTicket.status,
-      new_status: body.status,
+      action: body.status,
+      description: `Status changed from ${currentTicket.status} to ${body.status}`,
+      updated_by: user.id,
+      timestamp: new Date().toISOString(),
     });
 
     // Update ticket — clear resolved_at when reopening
@@ -219,7 +243,7 @@ export async function updateTicketStatus(req: Request, res: Response) {
       updateData.resolved_at = null;
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('tickets')
       .update(updateData)
       .eq('id', id)
@@ -247,7 +271,7 @@ export async function resolveTicket(req: Request, res: Response) {
     }
 
     // Get current ticket
-    const { data: currentTicket, error: fetchError } = await supabase
+    const { data: currentTicket, error: fetchError } = await supabaseAdmin
       .from('tickets')
       .select('*')
       .eq('id', id)
@@ -261,15 +285,16 @@ export async function resolveTicket(req: Request, res: Response) {
     const now = new Date().toISOString();
 
     // Record history
-    await supabase.from('ticket_history').insert({
+    await supabaseAdmin.from('ticket_history').insert({
       ticket_id: id,
-      changed_by: user.id,
-      old_status: currentTicket.status,
-      new_status: TicketStatus.resolved,
+      action: 'resolved',
+      description: `Ticket resolved by ${user.name}`,
+      updated_by: user.id,
+      timestamp: now,
     });
 
     // Update ticket
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('tickets')
       .update({
         status: TicketStatus.resolved,
@@ -290,45 +315,99 @@ export async function resolveTicket(req: Request, res: Response) {
   }
 }
 
-// GET /tickets/:id/history - Get ticket history
-export async function getTicketHistory(req: Request, res: Response) {
+// POST /tickets/:id/close - Close ticket (Admin only, after Resolved)
+export async function closeTicket(req: Request, res: Response) {
   try {
     const { id } = req.params;
     const user = (req as any).user as User;
 
-    // Get ticket first to check access
-    const { data: ticket, error: ticketError } = await supabase
+    if (user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Only admin can close tickets' });
+    }
+
+    // Get current ticket
+    const { data: currentTicket, error: fetchError } = await supabaseAdmin
       .from('tickets')
       .select('*')
       .eq('id', id)
       .single();
 
-    if (ticketError) throw ticketError;
-    if (!ticket) {
+    if (fetchError) throw fetchError;
+    if (!currentTicket) {
       return res.status(404).json({ success: false, message: 'Ticket not found' });
     }
 
-    // Check access
-    if (user.role === 'user' && ticket.user_id !== user.id) {
-      return res.status(403).json({ success: false, message: 'Access denied' });
-    }
-    if (user.role === 'helpdesk' && ticket.assigned_to !== user.id && ticket.assigned_to) {
-      return res.status(403).json({ success: false, message: 'Access denied' });
+    // Only allow closing from Resolved status
+    if (currentTicket.status !== TicketStatus.resolved) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only resolved tickets can be closed',
+      });
     }
 
-    // Get history
-    const { data, error } = await supabase
+    const now = new Date().toISOString();
+
+    // Record history
+    await supabaseAdmin.from('ticket_history').insert({
+      ticket_id: id,
+      action: 'closed',
+      description: `Ticket closed by ${user.name}`,
+      updated_by: user.id,
+      timestamp: now,
+    });
+
+    // Update ticket
+    const { data, error } = await supabaseAdmin
+      .from('tickets')
+      .update({
+        status: TicketStatus.closed,
+        updated_at: now,
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    const ticket = mapToTicket(data);
+    res.json({ success: true, data: ticket });
+  } catch (error: any) {
+    console.error('Error closing ticket:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// GET /history - Get all ticket history entries (filtered by role)
+export async function getAllHistory(req: Request, res: Response) {
+  try {
+    const user = (req as any).user as User;
+
+    let query = supabaseAdmin
       .from('ticket_history')
-      .select('*')
-      .eq('ticket_id', id)
-      .order('created_at', { ascending: true });
+      .select('*, profiles!updated_by(name)');
 
+    if (user.role === 'user') {
+      // User: history hanya untuk tiket miliknya + join nama actor
+      query = query
+        .select('*, profiles!updated_by(name), tickets!inner(user_id)')
+        .eq('tickets.user_id', user.id);
+    } else if (user.role === 'helpdesk') {
+      // Helpdesk: history hanya untuk tiket yang di-assign ke dia + join nama actor
+      query = query
+        .select('*, profiles!updated_by(name), tickets!inner(assigned_to)')
+        .eq('tickets.assigned_to', user.id);
+    }
+    // Admin: semua history + join nama actor
+
+    query = query.order('timestamp', { ascending: false });
+
+    const { data, error } = await query;
     if (error) throw error;
 
     const history = data.map(mapToTicketHistory);
     res.json({ success: true, data: history });
   } catch (error: any) {
-    console.error('Error fetching ticket history:', error);
+    console.error('Error fetching all history:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 }

@@ -15,6 +15,7 @@ class TicketTrackingStepper extends StatelessWidget {
       {'status': TicketStatus.assigned, 'label': 'Assigned', 'desc': 'Ditugaskan ke helpdesk'},
       {'status': TicketStatus.inProgress, 'label': 'In Progress', 'desc': 'Sedang ditangani IT'},
       {'status': TicketStatus.resolved, 'label': 'Resolved', 'desc': 'Solusi telah ditemukan'},
+      {'status': TicketStatus.closed, 'label': 'Closed', 'desc': 'Tiket resmi ditutup'},
     ];
 
     return Column(
@@ -93,6 +94,7 @@ class TicketTrackingStepper extends StatelessWidget {
       TicketStatus.assigned,
       TicketStatus.inProgress,
       TicketStatus.resolved,
+      TicketStatus.closed,
     ];
     return statusOrder.indexOf(currentStatus) >= statusOrder.indexOf(stepStatus);
   }

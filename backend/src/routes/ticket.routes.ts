@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authMiddleware } from '../middleware/auth';
+import { authMiddleware, requireRole } from '../middleware/auth';
 import {
   getTickets,
   getTicketById,
@@ -7,7 +7,8 @@ import {
   assignTicket,
   updateTicketStatus,
   resolveTicket,
-  getTicketHistory,
+  closeTicket,
+  getAllHistory,
 } from '../controllers/ticket.controller';
 import {
   getComments,
@@ -19,6 +20,9 @@ const router = Router();
 
 // GET /tickets - List tickets (filtered by role)
 router.get('/', authMiddleware, getTickets);
+
+// GET /tickets/history - Get all ticket history (filtered by role) — must be before :id
+router.get('/history', authMiddleware, getAllHistory);
 
 // GET /tickets/:id - Get ticket detail
 router.get('/:id', authMiddleware, getTicketById);
@@ -35,8 +39,8 @@ router.put('/:id/status', authMiddleware, updateTicketStatus);
 // POST /tickets/:id/resolve - Resolve ticket (Admin only)
 router.post('/:id/resolve', authMiddleware, resolveTicket);
 
-// GET /tickets/:id/history - Get ticket history
-router.get('/:id/history', authMiddleware, getTicketHistory);
+// POST /tickets/:id/close - Close ticket (Admin only, after Resolved)
+router.post('/:id/close', authMiddleware, requireRole('admin'), closeTicket);
 
 // ─── Comments ─────────────────────────────────────────────────────────────────
 

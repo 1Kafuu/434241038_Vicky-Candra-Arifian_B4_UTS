@@ -114,12 +114,13 @@ class TicketModel extends TicketEntity {
     if (json == null) return [];
     return (json as List).map((item) {
       return TicketHistoryEntity(
-        id: item['id'],
+        id: item['id'] ?? '',
         ticketId: item['ticketId'] ?? '',
-        changedBy: item['changedBy'] ?? '',
-        oldStatus: item['oldStatus'],
-        newStatus: item['newStatus'] ?? '',
-        createdAt: DateTime.parse(item['createdAt']),
+        action: item['action'] ?? '',
+        description: item['description'] ?? '',
+        updatedBy: item['updatedBy'] ?? '',
+        updatedByName: item['updatedByName'] ?? 'Unknown',
+        timestamp: DateTime.tryParse(item['timestamp'] ?? '') ?? DateTime.now(),
       );
     }).toList();
   }
@@ -131,10 +132,11 @@ class TicketModel extends TicketEntity {
       return {
         'id': item.id,
         'ticketId': item.ticketId,
-        'changedBy': item.changedBy,
-        'oldStatus': item.oldStatus,
-        'newStatus': item.newStatus,
-        'createdAt': item.createdAt.toIso8601String(),
+        'action': item.action,
+        'description': item.description,
+        'updatedBy': item.updatedBy,
+        'updatedByName': item.updatedByName,
+        'timestamp': item.timestamp.toIso8601String(),
       };
     }).toList();
   }

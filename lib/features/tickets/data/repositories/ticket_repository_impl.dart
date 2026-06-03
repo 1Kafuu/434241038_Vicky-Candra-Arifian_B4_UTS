@@ -39,6 +39,14 @@ class TicketRepositoryImpl implements TicketRepository {
   }
 
   @override
+  Future<TicketEntity?> getTicketById(String ticketId) async {
+    if (isOnline) {
+      return await remoteDataSource!.getTicketById(token!, ticketId);
+    }
+    return null;
+  }
+
+  @override
   Future<TicketEntity?> createTicket(TicketEntity ticket) async {
     if (isOnline) {
       final created = await remoteDataSource!.createTicket(
@@ -113,10 +121,11 @@ class TicketRepositoryImpl implements TicketRepository {
       final newHistoryEntry = TicketHistoryEntity(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         ticketId: ticketId,
-        changedBy: adminName,
-        oldStatus: ticket.status.label,
-        newStatus: newStatus.label,
-        createdAt: DateTime.now(),
+        action: newStatus.label,
+        description: 'Status changed from ${ticket.status.label} to ${newStatus.label}',
+        updatedBy: adminName,
+        updatedByName: adminName,
+        timestamp: DateTime.now(),
       );
 
       final updatedTicket = TicketModel(
@@ -281,9 +290,35 @@ class TicketRepositoryImpl implements TicketRepository {
   }
 
   @override
+  Future<void> closeTicket(String ticketId) async {
+    if (isOnline) {
+      await remoteDataSource!.closeTicket(token!, ticketId);
+    }
+  }
+
+  @override
   Future<void> assignTicket(String ticketId, String assignedTo) async {
     if (isOnline) {
       await remoteDataSource!.assignTicket(token!, ticketId, assignedTo);
     }
+  }
+
+  @override
+  Future<List<TicketHistoryEntity>> getAllHistory() async {
+    if (isOnline) {
+      final raw = await remoteDataSource!.getAllHistory(token!);
+      return raw
+          .map((json) => TicketHistoryEntity(
+                id: json['id'] ?? '',
+                ticketId: json['ticketId'] ?? '',
+                action: json['action'] ?? '',
+                description: json['description'] ?? '',
+                updatedBy: json['updatedBy'] ?? '',
+                updatedByName: json['updatedByName'] ?? 'Unknown',
+                timestamp: DateTime.tryParse(json['timestamp'] ?? '') ?? DateTime.now(),
+              ))
+          .toList();
+    }
+    return [];
   }
 }

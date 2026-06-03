@@ -43,6 +43,10 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
   void initState() {
     super.initState();
     _fetchComments();
+    // Selalu reload detail tiket dari backend setiap kali halaman ini dibuka
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.invalidate(ticketDetailProvider(widget.ticket.id));
+    });
   }
 
   Future<void> _fetchComments() async {
@@ -72,6 +76,8 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
     final user = ref.watch(currentUserProvider);
     // 1. Pantau perubahan list tiket secara global
     final ticketsAsync = ref.watch(ticketListProvider);
+    // 2. Pantau detail tiket dari backend (auto-refresh tiap halaman dibuka)
+    final detailAsync = ref.watch(ticketDetailProvider(widget.ticket.id));
 
     return ticketsAsync.when(
       data: (tickets) {
@@ -81,6 +87,11 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
         } catch (_) {
           currentTicket = widget.ticket;
         }
+        // Prioritaskan data dari detail provider (lebih fresh) kalau sudah ready
+        final freshDetail = detailAsync.asData?.value;
+        if (freshDetail != null) {
+          currentTicket = freshDetail;
+        }
 
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -88,11 +99,21 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
           body: Column(
             children: [
               Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                child: RefreshIndicator(
+                  onRefresh: () async {
+                    ref.invalidate(ticketDetailProvider(widget.ticket.id));
+                    ref.invalidate(ticketListProvider);
+                    await Future.wait([
+                      ref.read(ticketDetailProvider(widget.ticket.id).future),
+                      ref.read(ticketListProvider.future),
+                    ]);
+                  },
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                       // --- INFORMASI TIKET ---
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -119,24 +140,23 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                           color: Theme.of(context).brightness == Brightness.dark ? Colors.grey.shade400 : Colors.grey.shade600,
                         ),
                       ),
-                      const Divider(height: 40),
-                      // Gunakan operator spread (...) dengan list if untuk menyisipkan widget secara kondisional
                       if (user?.role.name == 'admin') ...[
-                        const SizedBox(height: 24),
-                        const Text(
-                          "Assign Helpdesk",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                        if (currentTicket.status == TicketStatus.open) ...[
+                          const SizedBox(height: 24),
+                          const Text(
+                            "Assign Helpdesk",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        _AdminAssignDropdown(
-                          ticketId: currentTicket.id,
-                          currentAssignedTo: currentTicket.assignedTo,
-                        ),
-                        if (currentTicket.status == TicketStatus.resolved ||
-                            currentTicket.status == TicketStatus.inProgress) ...[
+                          const SizedBox(height: 12),
+                          _AdminAssignDropdown(
+                            ticketId: currentTicket.id,
+                            currentAssignedTo: currentTicket.assignedTo,
+                          ),
+                        ],
+                        if (currentTicket.status == TicketStatus.resolved) ...[
                           const SizedBox(height: 24),
                           const Text(
                             "Update Status",
@@ -153,6 +173,10 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                                 ref
                                     .read(ticketListProvider.notifier)
                                     .resolveTicket(currentTicket.id);
+                              } else if (status == TicketStatus.closed) {
+                                ref
+                                    .read(ticketListProvider.notifier)
+                                    .closeTicket(currentTicket.id);
                               } else {
                                 ref
                                     .read(ticketListProvider.notifier)
@@ -196,6 +220,18 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                                 },
                                 backgroundColor: currentTicket.status == TicketStatus.pending
                                     ? Theme.of(context).colorScheme.primary.withOpacity(0.2)
+                                    : null,
+                              ),
+                            if (currentTicket.status != TicketStatus.resolved)
+                              ActionChip(
+                                label: const Text('Resolved'),
+                                onPressed: () {
+                                  ref
+                                      .read(ticketListProvider.notifier)
+                                      .updateStatus(currentTicket.id, TicketStatus.resolved);
+                                },
+                                backgroundColor: currentTicket.status == TicketStatus.resolved
+                                    ? Colors.green.withOpacity(0.2)
                                     : null,
                               ),
                           ],
@@ -290,7 +326,8 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                           },
                         ),
                       const SizedBox(height: 20),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -732,12 +769,12 @@ class _AdminStatusDropdownState extends State<_AdminStatusDropdown> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Admin options:
-    // - Open: only appears when ticket is Resolved (to reopen)
-    // - Resolved: only appears when ticket is In Progress
+    // Admin options (hanya saat ticket Resolved):
+    // - Open: buka kembali (re-open)
+    // - Closed: tutup permanen
     final options = <TicketStatus>[
       if (widget.currentStatus == TicketStatus.resolved) TicketStatus.open,
-      if (widget.currentStatus == TicketStatus.inProgress) TicketStatus.resolved,
+      if (widget.currentStatus == TicketStatus.resolved) TicketStatus.closed,
     ];
 
     return Column(
@@ -749,13 +786,23 @@ class _AdminStatusDropdownState extends State<_AdminStatusDropdown> {
                 Icon(
                   s == TicketStatus.resolved
                       ? Icons.check_circle_outline
-                      : Icons.refresh,
+                      : s == TicketStatus.closed
+                          ? Icons.lock_outline
+                          : Icons.refresh,
                   size: 20,
-                  color: s == TicketStatus.resolved ? Colors.green : Colors.blue,
+                  color: s == TicketStatus.resolved
+                      ? Colors.green
+                      : s == TicketStatus.closed
+                          ? Colors.red.shade400
+                          : Colors.blue,
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  s == TicketStatus.resolved ? 'Resolved (tutup tiket)' : 'Open (buka kembali)',
+                  s == TicketStatus.resolved
+                      ? 'Resolved (tutup tiket)'
+                      : s == TicketStatus.closed
+                          ? 'Closed (tutup permanen)'
+                          : 'Open (buka kembali)',
                   style: TextStyle(
                     color: isDark ? Colors.white : Colors.black,
                   ),
@@ -767,7 +814,11 @@ class _AdminStatusDropdownState extends State<_AdminStatusDropdown> {
             onChanged: (value) {
               setState(() => _selected = value);
             },
-            activeColor: s == TicketStatus.resolved ? Colors.green : Theme.of(context).colorScheme.primary,
+            activeColor: s == TicketStatus.resolved
+                ? Colors.green
+                : s == TicketStatus.closed
+                    ? Colors.red.shade400
+                    : Theme.of(context).colorScheme.primary,
             contentPadding: EdgeInsets.zero,
           );
         }),
@@ -780,7 +831,9 @@ class _AdminStatusDropdownState extends State<_AdminStatusDropdown> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: _selected == TicketStatus.resolved
                     ? Colors.green
-                    : Theme.of(context).colorScheme.primary,
+                    : _selected == TicketStatus.closed
+                        ? Colors.red.shade400
+                        : Theme.of(context).colorScheme.primary,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -789,7 +842,9 @@ class _AdminStatusDropdownState extends State<_AdminStatusDropdown> {
               child: Text(
                 _selected == TicketStatus.resolved
                     ? 'Konfirmasi Resolve'
-                    : 'Buka Kembali Tiket',
+                    : _selected == TicketStatus.closed
+                        ? 'Konfirmasi Penutupan'
+                        : 'Buka Kembali Tiket',
               ),
             ),
           ),
