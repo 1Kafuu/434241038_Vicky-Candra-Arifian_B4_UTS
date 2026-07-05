@@ -12,7 +12,9 @@ abstract class AuthRemoteDataSource {
   Future<Map<String, dynamic>> getCurrentUser(String token);
   Future<void> logout(String token);
   Future<List<Map<String, dynamic>>> getHelpdesks(String token);
-  Future<void> resetPassword(String email);
+  Future<void> forgotPassword(String email);
+  Future<bool> verifyOtp(String email, String otp);
+  Future<bool> resetPassword(String email, String otp, String newPassword);
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
@@ -114,7 +116,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   }
 
   @override
-  Future<void> resetPassword(String email) async {
+  Future<void> forgotPassword(String email) async {
     final response = await client.post(
       Uri.parse(ApiConstants.forgotPassword),
       headers: {'Content-Type': 'application/json'},
@@ -124,7 +126,41 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     final body = jsonDecode(response.body);
 
     if (response.statusCode != 200 || body['success'] != true) {
-      throw Exception(body['message'] ?? 'Reset password failed');
+      throw Exception(body['message'] ?? 'Failed to send OTP');
     }
+  }
+
+  @override
+  Future<bool> verifyOtp(String email, String otp) async {
+    final response = await client.post(
+      Uri.parse(ApiConstants.verifyOtp),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'otp': otp}),
+    );
+
+    final body = jsonDecode(response.body);
+
+    if (response.statusCode != 200 || body['success'] != true) {
+      throw Exception(body['message'] ?? 'Invalid OTP');
+    }
+
+    return true;
+  }
+
+  @override
+  Future<bool> resetPassword(String email, String otp, String newPassword) async {
+    final response = await client.post(
+      Uri.parse(ApiConstants.resetPassword),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'otp': otp, 'newPassword': newPassword}),
+    );
+
+    final body = jsonDecode(response.body);
+
+    if (response.statusCode != 200 || body['success'] != true) {
+      throw Exception(body['message'] ?? 'Failed to reset password');
+    }
+
+    return true;
   }
 }

@@ -51,6 +51,8 @@ AUTH_MODULE.md
 
 # code-review-graph
 .code-review-graph/
+docs/
+graphify-out/
 
 # Backend (Node.js)
 backend/.env

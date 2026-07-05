@@ -8,6 +8,8 @@ class ApiConstants {
   static const String logout = '$baseUrl/auth/logout';
   static const String helpdesks = '$baseUrl/auth/helpdesks';
   static const String forgotPassword = '$baseUrl/auth/forgot-password';
+  static const String verifyOtp = '$baseUrl/auth/verify-otp';
+  static const String resetPassword = '$baseUrl/auth/reset-password';
 
   // Ticket endpoints
   static const String tickets = '$baseUrl/tickets';
