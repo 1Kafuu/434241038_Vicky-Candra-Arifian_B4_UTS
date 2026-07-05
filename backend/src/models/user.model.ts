@@ -40,6 +40,34 @@ export interface LoginRequest {
   password: string;
 }
 
+// Request body for POST /api/auth/forgot-password (send OTP)
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+// Request body for POST /api/auth/verify-otp
+export interface VerifyOtpRequest {
+  email: string;
+  otp: string;
+}
+
+// Request body for POST /api/auth/reset-password
+export interface ResetPasswordRequest {
+  email: string;
+  otp: string;
+  newPassword: string;
+}
+
+// Row shape of password_reset_otps table
+export interface PasswordResetOtpRow {
+  id: string;
+  email: string;
+  otp: string;
+  expires_at: string;
+  used_at: string | null;
+  created_at: string;
+}
+
 // Helper — maps a Supabase auth user + profile row to our User interface
 export function mapToUser(
   id: string,
