@@ -14,6 +14,7 @@ import '../../../tickets/presentation/screens/ticket_detail_screen.dart';
 import '../../../tickets/presentation/screens/ticket_history_screen.dart';
 import '../../../tickets/presentation/widgets/ticket_card.dart';
 import '../../../dashboard/presentation/widgets/stat_card.dart';
+import '../providers/dashboard_provider.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -22,7 +23,6 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final textTheme = Theme.of(context).textTheme;
-    final ticketsAsync = ref.watch(ticketListProvider);
     final stats = ref.watch(ticketStatsProvider);
 
     return Scaffold(
@@ -137,13 +137,13 @@ class DashboardScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Baris Search sesuai desain
+              // 1. Section Statistik (FR-008)
               const SizedBox(height: 8),
-               _buildSearchSection(context),
+              _buildStatCards(context, textTheme, stats),
 
-               // 2. Section Statistik (FR-008)
-               const SizedBox(height: 24),
-               _buildStatCards(context, textTheme, stats),
+              // 2. Baris Search
+              const SizedBox(height: 24),
+              _buildSearchSection(context, ref),
 
               // 3. Banner "Welcome" sesuai desain
               const SizedBox(height: 24),
@@ -151,7 +151,7 @@ class DashboardScreen extends ConsumerWidget {
 
               // 4. Section "Ongoing Tickets" sesuai desain
               const SizedBox(height: 24),
-              _buildOngoingSection(context, ticketsAsync),
+              _buildOngoingSection(context, ref),
             ],
           ),
         ),
@@ -160,30 +160,38 @@ class DashboardScreen extends ConsumerWidget {
   }
 
     // Widget Helper: Search Section
-    Widget _buildSearchSection(BuildContext context) {
+    Widget _buildSearchSection(BuildContext context, WidgetRef ref) {
       final isDark = Theme.of(context).brightness == Brightness.dark;
-     return CustomTextField(
-       label: "Search",
-       hint: "Search tickets...",
-       icon: Icons.search,
-       decoration: InputDecoration(
-         prefixIcon: Icon(Icons.search, color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
-         hintText: "Search",
-         hintStyle: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
-         filled: true,
-         fillColor: isDark ? Colors.grey.shade900 : Colors.white,
-         contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-         border: OutlineInputBorder(
-           borderRadius: const BorderRadius.all(Radius.circular(25.0)),
-           borderSide: BorderSide.none,
-         ),
-         enabledBorder: OutlineInputBorder(
-           borderRadius: const BorderRadius.all(Radius.circular(25.0)),
-           borderSide: BorderSide.none,
-         ),
-       ),
-     );
-   }
+      return CustomTextField(
+        label: "Search",
+        hint: "Search tickets...",
+        icon: Icons.search,
+        onChanged: (value) {
+          final allTickets = ref.read(ticketListProvider).when(
+            data: (tickets) => tickets,
+            loading: () => <TicketEntity>[],
+            error: (_, __) => <TicketEntity>[],
+          );
+          ref.read(dashboardSearchProvider.notifier).search(value, allTickets);
+        },
+        decoration: InputDecoration(
+          prefixIcon: Icon(Icons.search, color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+          hintText: "Search",
+          hintStyle: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+          filled: true,
+          fillColor: isDark ? Colors.grey.shade900 : Colors.white,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+          border: OutlineInputBorder(
+            borderRadius: const BorderRadius.all(Radius.circular(25.0)),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: const BorderRadius.all(Radius.circular(25.0)),
+            borderSide: BorderSide.none,
+          ),
+        ),
+      );
+    }
 
     Widget _buildStatCards(BuildContext context, TextTheme textTheme, Map<String, int> stats) {
      // Langsung kembalikan Column/Grid tanpa SliverToBoxAdapter
@@ -286,80 +294,76 @@ class DashboardScreen extends ConsumerWidget {
   }
 
    // Widget Helper: Ongoing Tickets Section
-   Widget _buildOngoingSection(
-     BuildContext context,
-     AsyncValue<List<TicketEntity>> ticketsAsync,
-   ) {
-     final isDark = Theme.of(context).brightness == Brightness.dark;
-     return Column(
-       children: [
-         Row(
-           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-           children: [
-             Text("Tickets", style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Theme.of(context).colorScheme.onSurface)),
-             TextButton(
-               onPressed: () {
-                 Navigator.push(
-                   context,
-                   MaterialPageRoute(
-                     builder: (context) => const TicketListScreen(),
-                   ),
-                 );
-               },
-               child: Text(
-                 "view all",
-                 style: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
-               ),
-             ),
-           ],
-         ),
-        const SizedBox(height: 12),
-        // GridView untuk meniru tata letak Ongoing Projects
-        const SizedBox(height: 12),
+    Widget _buildOngoingSection(BuildContext context, WidgetRef ref) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      final searchState = ref.watch(dashboardSearchProvider);
+      final tickets = ref.watch(filteredTicketsProvider);
 
-        ticketsAsync.when(
-          data: (tickets) {
-            if (tickets.isEmpty) {
-              return const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20),
-                  child: Text("No ongoing tickets found"),
-                ),
-              );
-            }
-            return GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16.0,
-                mainAxisSpacing: 16.0,
-                childAspectRatio: 0.8,
+      return Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                searchState.query.isEmpty ? "Tickets" : "Search Results",
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Theme.of(context).colorScheme.onSurface),
               ),
-              itemCount: tickets.length > 4
-                  ? 4
-                  : tickets.length, // Batasi 4 di dashboard
-              itemBuilder: (context, index) {
-                final ticket = tickets[index];
-                return GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            TicketDetailScreen(ticket: ticket),
-                      ),
-                    );
-                  },
-                  child: TicketCard(ticket: ticket),
-                );
-              },
-            );
-          },
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (err, stack) => Center(child: Text('Error: $err')),
-        ),
-      ],
-    );
-  }
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const TicketListScreen(),
+                    ),
+                  );
+                },
+                child: Text(
+                  "view all",
+                  style: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+                ),
+              ),
+            ],
+          ),
+         const SizedBox(height: 12),
+         // GridView untuk meniru tata letak Ongoing Projects
+         const SizedBox(height: 12),
+
+         tickets.isEmpty
+             ? const Center(
+                 child: Padding(
+                   padding: EdgeInsets.symmetric(vertical: 20),
+                   child: Text("No tickets found"),
+                 ),
+               )
+             : GridView.builder(
+                 shrinkWrap: true,
+                 physics: const NeverScrollableScrollPhysics(),
+                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                   crossAxisCount: 2,
+                   crossAxisSpacing: 16.0,
+                   mainAxisSpacing: 16.0,
+                   childAspectRatio: 0.8,
+                 ),
+                 itemCount: tickets.length > 4 && searchState.query.isEmpty
+                     ? 4
+                     : tickets.length,
+                 itemBuilder: (context, index) {
+                   final ticket = tickets[index];
+                   return GestureDetector(
+                     onTap: () {
+                       Navigator.push(
+                         context,
+                         MaterialPageRoute(
+                           builder: (context) =>
+                               TicketDetailScreen(ticket: ticket),
+                         ),
+                       );
+                     },
+                     child: TicketCard(ticket: ticket),
+                   );
+                 },
+               ),
+       ],
+      );
+    }
 }
