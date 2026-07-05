@@ -10,5 +10,7 @@ abstract class AuthRepository {
   Future<UserEntity?> getCurrentUser();
   Future<void> logout();
   Future<List<UserEntity>> getHelpdeskUsers();
-  Future<bool> resetPassword(String email);
+  Future<bool> forgotPassword(String email);
+  Future<bool> verifyOtp(String email, String otp);
+  Future<bool> resetPasswordWithOtp(String email, String otp, String newPassword);
 }
