@@ -115,4 +115,14 @@ class AuthRepositoryImpl implements AuthRepository {
       return [];
     }
   }
+
+  @override
+  Future<bool> resetPassword(String email) async {
+    try {
+      await remoteDataSource.resetPassword(email);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
 }

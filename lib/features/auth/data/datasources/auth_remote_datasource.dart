@@ -12,6 +12,7 @@ abstract class AuthRemoteDataSource {
   Future<Map<String, dynamic>> getCurrentUser(String token);
   Future<void> logout(String token);
   Future<List<Map<String, dynamic>>> getHelpdesks(String token);
+  Future<void> resetPassword(String email);
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
@@ -110,5 +111,20 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     }
 
     throw Exception(body['message'] ?? 'Failed to fetch helpdesk list');
+  }
+
+  @override
+  Future<void> resetPassword(String email) async {
+    final response = await client.post(
+      Uri.parse(ApiConstants.forgotPassword),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email}),
+    );
+
+    final body = jsonDecode(response.body);
+
+    if (response.statusCode != 200 || body['success'] != true) {
+      throw Exception(body['message'] ?? 'Reset password failed');
+    }
   }
 }

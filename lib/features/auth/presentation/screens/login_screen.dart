@@ -6,6 +6,7 @@ import '../../../../core/widgets/loading_widget.dart';
 import '../providers/auth_provider.dart';
 import '../../../dashboard/presentation/screens/dashboard_screen.dart';
 import '../screens/register_screen.dart';
+import '../screens/forgot_password_screen.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/theme/theme_provider.dart';
 
@@ -157,6 +158,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: Text(
                       'Belum punya akun? Daftar di sini',
                       style: TextStyle(color: isDark ? Colors.grey.shade300 : Colors.grey.shade700),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Center(
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ForgotPasswordScreen(),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      'Lupa Password?',
+                      style: TextStyle(color: AppColors.primary),
                     ),
                   ),
                 ),
