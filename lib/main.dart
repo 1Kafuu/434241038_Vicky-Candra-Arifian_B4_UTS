@@ -6,6 +6,7 @@ import 'features/splash/presentation/splash_screen.dart';
 import 'core/theme/theme_provider.dart';
 import 'package:e_ticketing/core/providers/shared_prefs_provider.dart';
 import 'package:e_ticketing/core/services/notification_service.dart';
+import 'features/auth/presentation/screens/forgot_password_screen.dart';
 
 void main() async {
   // 1. Wajib panggil ini agar SharedPreferences bisa berjalan di native
