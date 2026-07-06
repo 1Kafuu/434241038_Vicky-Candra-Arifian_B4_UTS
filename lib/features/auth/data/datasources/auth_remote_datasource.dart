@@ -15,6 +15,11 @@ abstract class AuthRemoteDataSource {
   Future<void> forgotPassword(String email);
   Future<bool> verifyOtp(String email, String otp);
   Future<bool> resetPassword(String email, String otp, String newPassword);
+  Future<Map<String, dynamic>> getUsers(String token, {int page = 1, int limit = 10, String? search, String? role});
+  Future<Map<String, dynamic>> getUserById(String token, String id);
+  Future<Map<String, dynamic>> createUser(String token, {required String name, required String email, required String password, required String role});
+  Future<Map<String, dynamic>> updateUser(String token, String id, {String? name, String? role});
+  Future<void> deleteUser(String token, String id);
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
@@ -162,5 +167,111 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     }
 
     return true;
+  }
+
+  @override
+  Future<Map<String, dynamic>> getUsers(String token, {int page = 1, int limit = 10, String? search, String? role}) async {
+    final queryParams = <String, String>{
+      'page': page.toString(),
+      'limit': limit.toString(),
+    };
+    if (search != null && search.isNotEmpty) {
+      queryParams['search'] = search;
+    }
+    if (role != null && role.isNotEmpty) {
+      queryParams['role'] = role;
+    }
+    final uri = Uri.parse('${ApiConstants.adminUsers}').replace(queryParameters: queryParams);
+    final response = await client.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final body = jsonDecode(response.body);
+    if (response.statusCode == 200 && body['success'] == true) {
+      return body['data'];
+    }
+    throw Exception(body['message'] ?? 'Failed to fetch users');
+  }
+
+  @override
+  Future<Map<String, dynamic>> getUserById(String token, String id) async {
+    final response = await client.get(
+      Uri.parse(ApiConstants.adminUserById(id)),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final body = jsonDecode(response.body);
+    if (response.statusCode == 200 && body['success'] == true) {
+      return body['data'];
+    }
+    throw Exception(body['message'] ?? 'Failed to fetch user');
+  }
+
+  @override
+  Future<Map<String, dynamic>> createUser(String token, {required String name, required String email, required String password, required String role}) async {
+    final response = await client.post(
+      Uri.parse(ApiConstants.adminUsers),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'name': name,
+        'email': email,
+        'password': password,
+        'role': role,
+      }),
+    );
+
+    final body = jsonDecode(response.body);
+    if (response.statusCode == 201 && body['success'] == true) {
+      return body['data'];
+    }
+    throw Exception(body['message'] ?? 'Failed to create user');
+  }
+
+  @override
+  Future<Map<String, dynamic>> updateUser(String token, String id, {String? name, String? role}) async {
+    final bodyMap = <String, dynamic>{};
+    if (name != null) bodyMap['name'] = name;
+    if (role != null) bodyMap['role'] = role;
+
+    final response = await client.patch(
+      Uri.parse(ApiConstants.adminUserById(id)),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(bodyMap),
+    );
+
+    final body = jsonDecode(response.body);
+    if (response.statusCode == 200 && body['success'] == true) {
+      return body['data'];
+    }
+    throw Exception(body['message'] ?? 'Failed to update user');
+  }
+
+  @override
+  Future<void> deleteUser(String token, String id) async {
+    final response = await client.delete(
+      Uri.parse(ApiConstants.adminUserById(id)),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final body = jsonDecode(response.body);
+    if (response.statusCode != 200 || body['success'] != true) {
+      throw Exception(body['message'] ?? 'Failed to delete user');
+    }
   }
 }

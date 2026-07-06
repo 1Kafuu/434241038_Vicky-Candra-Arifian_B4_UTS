@@ -145,4 +145,63 @@ class AuthRepositoryImpl implements AuthRepository {
       return false;
     }
   }
+
+  @override
+  Future<Map<String, dynamic>> getUsers({int page = 1, int limit = 10, String? search, String? role}) async {
+    try {
+      final token = _getToken();
+      if (token == null) throw Exception('Not authenticated');
+      return await remoteDataSource.getUsers(token, page: page, limit: limit, search: search, role: role);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  @override
+  Future<UserEntity?> getUserById(String id) async {
+    try {
+      final token = _getToken();
+      if (token == null) return null;
+      final data = await remoteDataSource.getUserById(token, id);
+      return UserModel.fromJson(data);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  @override
+  Future<UserEntity?> createUser({required String name, required String email, required String password, required String role}) async {
+    try {
+      final token = _getToken();
+      if (token == null) return null;
+      final data = await remoteDataSource.createUser(token, name: name, email: email, password: password, role: role);
+      return UserModel.fromJson(data);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  @override
+  Future<UserEntity?> updateUser(String id, {String? name, String? role}) async {
+    try {
+      final token = _getToken();
+      if (token == null) return null;
+      final data = await remoteDataSource.updateUser(token, id, name: name, role: role);
+      return UserModel.fromJson(data);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  @override
+  Future<bool> deleteUser(String id) async {
+    try {
+      final token = _getToken();
+      if (token == null) return false;
+      await remoteDataSource.deleteUser(token, id);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
 }

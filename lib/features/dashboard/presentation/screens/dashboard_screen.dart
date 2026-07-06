@@ -7,6 +7,7 @@ import '../../../../core/widgets/text_field.dart';
 import '../../../../core/constants/asset_constants.dart';
 import '../../../tickets/domain/entities/ticket_entity.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
+import '../../../admin/presentation/screens/admin_user_list_screen.dart';
 import '../../../tickets/presentation/providers/ticket_provider.dart';
 import '../../../tickets/presentation/screens/create_ticket_screen.dart';
 import '../../../tickets/presentation/screens/ticket_list_screen.dart';
@@ -42,7 +43,19 @@ class DashboardScreen extends ConsumerWidget {
           ],
         ),
          actions: [
-           // Meniru tombol lonceng notifikasi (FR-007)
+           if (user?.role.name == 'admin')
+             IconButton(
+               onPressed: () {
+                 Navigator.push(
+                   context,
+                   MaterialPageRoute(
+                     builder: (context) => const AdminUserListScreen(),
+                   ),
+                 );
+               },
+               icon: Icon(Icons.people_alt, color: Theme.of(context).colorScheme.onSurface),
+               tooltip: 'Manage Users',
+             ),
            IconButton(
              onPressed: () {}, // Logika ke halaman notifikasi
              icon: Icon(Icons.notifications_none, color: Theme.of(context).colorScheme.onSurface),

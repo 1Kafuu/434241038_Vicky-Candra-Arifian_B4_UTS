@@ -29,4 +29,8 @@ class ApiConstants {
   static String get history => '$_baseUrl/tickets/history';
   static String ticketComments(String id) => '$_baseUrl/tickets/$id/comments';
   static String ticketAttachments(String id) => '$_baseUrl/tickets/$id/attachments';
+
+  // Admin User Management endpoints
+  static String get adminUsers => '$_baseUrl/admin/users';
+  static String adminUserById(String id) => '$_baseUrl/admin/users/$id';
 }
