@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart' hide TextField;
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/widgets/text_field.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -107,12 +107,11 @@ class _AdminUserListScreenState extends ConsumerState<AdminUserListScreen> {
             ),
             child: Column(
               children: [
-                CustomTextField(
+                TextField(
                   controller: _searchController,
-                  hint: "Search by name or email",
-                  icon: Icons.search,
                   onChanged: _onSearch,
                   decoration: InputDecoration(
+                    hintText: "Search by name or email",
                     prefixIcon: Icon(Icons.search, color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
                     filled: true,
                     fillColor: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
@@ -150,9 +149,9 @@ class _AdminUserListScreenState extends ConsumerState<AdminUserListScreen> {
                           children: [
                             Text('Error: ${state.error}'),
                             const SizedBox(height: 16),
-                            Button(
-                              label: 'Retry',
+                            ElevatedButton(
                               onPressed: () => ref.read(adminUserProvider.notifier).loadUsers(),
+                              child: const Text('Retry'),
                             ),
                           ],
                         ),

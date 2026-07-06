@@ -22,7 +22,6 @@ class _AdminUserFormScreenState extends ConsumerState<AdminUserFormScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   UserRole _selectedRole = UserRole.user;
-  bool _obscurePassword = true;
   bool _isSubmitting = false;
 
   bool get isEditing => widget.user != null;
@@ -122,7 +121,6 @@ class _AdminUserFormScreenState extends ConsumerState<AdminUserFormScreen> {
                   label: 'Email',
                   hint: 'Enter user email',
                   icon: Icons.email,
-                  keyboardType: TextInputType.emailAddress,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Email is required';
@@ -139,11 +137,7 @@ class _AdminUserFormScreenState extends ConsumerState<AdminUserFormScreen> {
                   label: 'Password',
                   hint: isEditing ? 'Leave blank to keep current' : 'Enter password',
                   icon: Icons.lock,
-                  obscureText: _obscurePassword,
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
-                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                  ),
+                  isPassword: true,
                   validator: (value) {
                     if (!isEditing && (value == null || value.isEmpty)) {
                       return 'Password is required';
@@ -178,16 +172,10 @@ class _AdminUserFormScreenState extends ConsumerState<AdminUserFormScreen> {
                 },
               ),
               const SizedBox(height: 32),
-              Button(
-                label: isEditing ? 'Update User' : 'Create User',
-                onPressed: _isSubmitting ? null : _onSubmit,
-                child: _isSubmitting
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(isEditing ? 'Update User' : 'Create User'),
+              CustomButton(
+                text: isEditing ? 'Update User' : 'Create User',
+                onPressed: _isSubmitting ? () {} : _onSubmit,
+                isLoading: _isSubmitting,
               ),
             ],
           ),

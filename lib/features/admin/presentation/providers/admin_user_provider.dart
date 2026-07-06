@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/domain/entities/user_entity.dart';
+import '../../../auth/domain/entities/role_enum.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
 class PaginatedUsers {
