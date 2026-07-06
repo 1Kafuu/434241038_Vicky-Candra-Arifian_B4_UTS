@@ -95,7 +95,7 @@ class _AdminUserListScreenState extends ConsumerState<AdminUserListScreen> {
             padding: const EdgeInsets.only(right: 8),
             child: CircleAvatar(
               radius: 20,
-              backgroundColor: Colors.blue,
+              backgroundColor: Theme.of(context).colorScheme.primary,
               child: IconButton(
                 onPressed: () {
                   Navigator.push(
