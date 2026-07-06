@@ -195,13 +195,9 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<bool> deleteUser(String id) async {
-    try {
-      final token = _getToken();
-      if (token == null) return false;
-      await remoteDataSource.deleteUser(token, id);
-      return true;
-    } catch (e) {
-      return false;
-    }
+    final token = _getToken();
+    if (token == null) return false;
+    await remoteDataSource.deleteUser(token, id);
+    return true;
   }
 }

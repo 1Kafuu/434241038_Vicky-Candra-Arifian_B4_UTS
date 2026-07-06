@@ -137,7 +137,12 @@ class AdminUserNotifier extends Notifier<AdminUserState> {
       state = state.copyWith(isLoading: false, error: 'Failed to delete user');
       return false;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      final errorMsg = e.toString();
+      if (errorMsg.contains('Cannot delete your own account')) {
+        state = state.copyWith(isLoading: false, error: 'Cannot delete your own account');
+      } else {
+        state = state.copyWith(isLoading: false, error: 'Failed to delete user');
+      }
       return false;
     }
   }

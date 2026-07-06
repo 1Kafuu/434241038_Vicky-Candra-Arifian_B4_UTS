@@ -65,13 +65,31 @@ class _AdminUserListScreenState extends ConsumerState<AdminUserListScreen> {
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
+              final state = ref.read(adminUserProvider);
               final success = await ref.read(adminUserProvider.notifier).deleteUser(user.id);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(success ? 'User deleted' : 'Failed to delete user'),
-                  ),
-                );
+                if (success) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('User deleted'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } else if (state.error != null && state.error!.contains('Cannot delete your own account')) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Cannot delete your own account'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Failed to delete user'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               }
             },
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
