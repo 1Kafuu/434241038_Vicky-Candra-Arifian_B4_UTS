@@ -37,7 +37,7 @@ export async function getUsers(
       countQuery = countQuery.eq('role', role);
     }
     if (search) {
-      countQuery = countQuery.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+      countQuery = countQuery.or(`name.ilike.%${search}%`);
     }
 
     const { count, error: countError } = await countQuery;
@@ -57,7 +57,7 @@ export async function getUsers(
       dataQuery = dataQuery.eq('role', role);
     }
     if (search) {
-      dataQuery = dataQuery.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+      dataQuery = dataQuery.or(`name.ilike.%${search}%`);
     }
 
     const { data: profiles, error: dataError } = await dataQuery;
