@@ -27,7 +27,7 @@ export async function getUsers(
     const page = Math.max(1, parseInt(String(query.page || DEFAULT_PAGE), 10));
     const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(String(query.limit || DEFAULT_LIMIT), 10)));
     const offset = (page - 1) * limit;
-    const search = (query.search || '').trim();
+    const search = query.search ? query.search.trim() : undefined;
     const role = query.role as UserRole | undefined;
 
     // Build count query
