@@ -5,6 +5,7 @@ import path from 'path';
 import authRoutes from './routes/auth.routes';
 import ticketRoutes from './routes/ticket.routes';
 import attachmentRoutes from './routes/attachment.routes';
+import userRoutes from './routes/user.routes';
 import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
@@ -31,6 +32,7 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/tickets', ticketRoutes);
+app.use('/api/admin', userRoutes);
 app.use('/api', attachmentRoutes);
 
 // ─── Health Check ─────────────────────────────────────────────────────────────

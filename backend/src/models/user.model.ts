@@ -83,3 +83,34 @@ export function mapToUser(
     createdAt: profile.created_at,
   };
 }
+
+// Query params for GET /api/admin/users
+export interface ListUsersQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+  role?: UserRole;
+}
+
+// Paginated response shape
+export interface PaginatedUsersResponse {
+  users: User[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+// Request body for POST /api/admin/users
+export interface CreateUserRequest {
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+}
+
+// Request body for PATCH /api/admin/users/:id
+export interface UpdateUserRequest {
+  name?: string;
+  role?: UserRole;
+}
