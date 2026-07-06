@@ -90,6 +90,19 @@ class _AdminUserListScreenState extends ConsumerState<AdminUserListScreen> {
       appBar: AppBar(
         title: const Text('Manage Users'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AdminUserFormScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.add),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
@@ -159,34 +172,23 @@ class _AdminUserListScreenState extends ConsumerState<AdminUserListScreen> {
                         )
                       : state.users.isEmpty
                           ? const Center(child: Text('No users found'))
-                        : RefreshIndicator(
-                            onRefresh: () => ref.read(adminUserProvider.notifier).loadUsers(),
-                            child: ListView.builder(
-                              padding: EdgeInsets.only(left: 16, right: 16, top: 16, bottom: state.users.isNotEmpty ? 16 : 80),
-                              itemCount: state.users.length,
-                              itemBuilder: (context, index) {
-                                final user = state.users[index];
-                                return _buildUserCard(user, isDark);
-                              },
+                          : RefreshIndicator(
+                              onRefresh: () => ref.read(adminUserProvider.notifier).loadUsers(),
+                              child: ListView.builder(
+                                padding: const EdgeInsets.all(16),
+                                itemCount: state.users.length,
+                                itemBuilder: (context, index) {
+                                  final user = state.users[index];
+                                  return _buildUserCard(user, isDark);
+                                },
+                              ),
                             ),
-                          ),
             ),
 
             if (!state.isLoading && state.users.isNotEmpty)
               _buildPagination(state, isDark),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const AdminUserFormScreen(),
-            ),
-          );
-        },
-        child: const Icon(Icons.add),
       ),
     );
   }
