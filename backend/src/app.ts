@@ -39,6 +39,12 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// ─── Config ───────────────────────────────────────────────────────────────────
+
+app.get('/api/config', (_req, res) => {
+  res.json({ baseUrl: process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 3000}` });
+});
+
 // ─── Global Error Handler ─────────────────────────────────────────────────────
 
 // Must be registered LAST, after all routes

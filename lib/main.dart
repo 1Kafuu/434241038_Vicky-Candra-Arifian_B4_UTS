@@ -6,6 +6,8 @@ import 'features/splash/presentation/splash_screen.dart';
 import 'core/theme/theme_provider.dart';
 import 'package:e_ticketing/core/providers/shared_prefs_provider.dart';
 import 'package:e_ticketing/core/services/notification_service.dart';
+import 'package:e_ticketing/core/services/config_service.dart';
+import 'package:e_ticketing/core/constants/api_constants.dart';
 import 'features/auth/presentation/screens/forgot_password_screen.dart';
 
 void main() async {
@@ -13,6 +15,10 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized(); 
 
   await NotificationService.init();
+  await ConfigService.init();
+
+  final baseUrl = await ConfigService.getBaseUrl();
+  ApiConstants.setBaseUrl(baseUrl);
 
   // 2. Inisialisasi SharedPreferences
   final prefs = await SharedPreferences.getInstance();
