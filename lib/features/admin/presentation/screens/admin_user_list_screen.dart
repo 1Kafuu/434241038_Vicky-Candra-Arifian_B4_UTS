@@ -91,77 +91,78 @@ class _AdminUserListScreenState extends ConsumerState<AdminUserListScreen> {
         title: const Text('Manage Users'),
         centerTitle: true,
       ),
-      body: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isDark ? Colors.grey.shade900 : Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                TextField(
-                  controller: _searchController,
-                  onChanged: _onSearch,
-                  decoration: InputDecoration(
-                    hintText: "Search by name or email",
-                    prefixIcon: Icon(Icons.search, color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
-                    filled: true,
-                    fillColor: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.grey.shade900 : Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _searchController,
+                    onChanged: _onSearch,
+                    decoration: InputDecoration(
+                      hintText: "Search by name or email",
+                      prefixIcon: Icon(Icons.search, color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+                      filled: true,
+                      fillColor: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildRoleChip(null, 'All'),
-                      const SizedBox(width: 8),
-                      _buildRoleChip('admin', 'Admin'),
-                      const SizedBox(width: 8),
-                      _buildRoleChip('helpdesk', 'Helpdesk'),
-                      const SizedBox(width: 8),
-                      _buildRoleChip('user', 'User'),
-                    ],
+                  const SizedBox(height: 12),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildRoleChip(null, 'All'),
+                        const SizedBox(width: 8),
+                        _buildRoleChip('admin', 'Admin'),
+                        const SizedBox(width: 8),
+                        _buildRoleChip('helpdesk', 'Helpdesk'),
+                        const SizedBox(width: 8),
+                        _buildRoleChip('user', 'User'),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          Expanded(
-            child: state.isLoading
-                ? const Center(child: LoadingWidget())
-                : state.error != null
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text('Error: ${state.error}'),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: () => ref.read(adminUserProvider.notifier).loadUsers(),
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
-                      )
-                    : state.users.isEmpty
-                        ? const Center(child: Text('No users found'))
+            Expanded(
+              child: state.isLoading
+                  ? const Center(child: LoadingWidget())
+                  : state.error != null
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text('Error: ${state.error}'),
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: () => ref.read(adminUserProvider.notifier).loadUsers(),
+                                child: const Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        )
+                      : state.users.isEmpty
+                          ? const Center(child: Text('No users found'))
                         : RefreshIndicator(
                             onRefresh: () => ref.read(adminUserProvider.notifier).loadUsers(),
                             child: ListView.builder(
-                              padding: EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 80),
+                              padding: EdgeInsets.only(left: 16, right: 16, top: 16, bottom: state.users.isNotEmpty ? 16 : 80),
                               itemCount: state.users.length,
                               itemBuilder: (context, index) {
                                 final user = state.users[index];
@@ -169,11 +170,12 @@ class _AdminUserListScreenState extends ConsumerState<AdminUserListScreen> {
                               },
                             ),
                           ),
-          ),
+            ),
 
-          if (!state.isLoading && state.users.isNotEmpty)
-            _buildPagination(state, isDark),
-        ],
+            if (!state.isLoading && state.users.isNotEmpty)
+              _buildPagination(state, isDark),
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
