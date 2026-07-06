@@ -161,7 +161,7 @@ class _AdminUserListScreenState extends ConsumerState<AdminUserListScreen> {
                         : RefreshIndicator(
                             onRefresh: () => ref.read(adminUserProvider.notifier).loadUsers(),
                             child: ListView.builder(
-                              padding: const EdgeInsets.all(16),
+                              padding: EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 80),
                               itemCount: state.users.length,
                               itemBuilder: (context, index) {
                                 final user = state.users[index];
@@ -170,6 +170,7 @@ class _AdminUserListScreenState extends ConsumerState<AdminUserListScreen> {
                             ),
                           ),
           ),
+
           if (!state.isLoading && state.users.isNotEmpty)
             _buildPagination(state, isDark),
         ],
