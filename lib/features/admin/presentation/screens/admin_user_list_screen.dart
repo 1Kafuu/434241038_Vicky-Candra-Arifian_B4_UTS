@@ -91,16 +91,23 @@ class _AdminUserListScreenState extends ConsumerState<AdminUserListScreen> {
         title: const Text('Manage Users'),
         centerTitle: true,
         actions: [
-          IconButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AdminUserFormScreen(),
-                ),
-              );
-            },
-            icon: const Icon(Icons.add),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: CircleAvatar(
+              radius: 20,
+              backgroundColor: Colors.blue,
+              child: IconButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AdminUserFormScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.add, color: Colors.white),
+              ),
+            ),
           ),
         ],
       ),
