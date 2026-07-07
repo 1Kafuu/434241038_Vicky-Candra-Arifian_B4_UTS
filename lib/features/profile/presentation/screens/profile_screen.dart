@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../../core/theme/theme_provider.dart';
-import '../../../auth/presentation/screens/login_screen.dart';
+import 'settings_screen.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -25,8 +24,11 @@ class ProfileScreen extends ConsumerWidget {
         elevation: 0,
         actions: [
           IconButton(
-            onPressed: () => _handleLogout(context, ref),
-            icon: Icon(Icons.logout, color: AppColors.error),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const SettingsScreen()),
+            ),
+            icon: Icon(Icons.settings, color: AppColors.primary),
           ),
         ],
       ),
@@ -87,47 +89,7 @@ class ProfileScreen extends ConsumerWidget {
                     value: user.id,
                     isDark: isDark,
                   ),
-                  _buildProfileTile(
-                    icon: Icons.dark_mode_outlined,
-                    label: 'App Theme',
-                    value: ref.watch(themeProvider) == ThemeMode.dark
-                        ? 'Dark Mode'
-                        : 'Light Mode',
-                    trailing: Switch(
-                      value: ref.watch(themeProvider) == ThemeMode.dark,
-                      onChanged: (_) =>
-                          ref.read(themeProvider.notifier).toggleTheme(),
-                    ),
-                    isDark: isDark,
-                  ),
-
                   const SizedBox(height: 40),
-
-                  // Logout Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () => _handleLogout(context, ref),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.error,
-                        side: BorderSide(
-                          color: AppColors.error,
-                          width: isDark ? 1.5 : 1,
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(
-                        'Logout dari Aplikasi',
-                        style: TextStyle(
-                          color: AppColors.error,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -183,19 +145,4 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  void _handleLogout(BuildContext context, WidgetRef ref) async {
-    // 1. Panggil fungsi logout di repository via provider
-    await ref.read(authRepositoryProvider).logout();
-
-    // 2. Reset state user menjadi null
-    ref.read(currentUserProvider.notifier).setUser(null);
-
-    // 3. Kembali ke Login Screen
-    if (context.mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-        (route) => false,
-      );
-    }
-  }
 }

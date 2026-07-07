@@ -33,18 +33,19 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/admin', userRoutes);
+
+// ─── Config ───────────────────────────────────────────────────────────────────
+
+app.get('/api/config', (_req, res) => {
+  res.json({ baseUrl: process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 3000}` });
+});
+
 app.use('/api', attachmentRoutes);
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// ─── Config ───────────────────────────────────────────────────────────────────
-
-app.get('/api/config', (_req, res) => {
-  res.json({ baseUrl: process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 3000}` });
 });
 
 // ─── Global Error Handler ─────────────────────────────────────────────────────

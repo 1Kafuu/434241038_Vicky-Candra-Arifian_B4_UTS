@@ -15,6 +15,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized(); 
 
   await NotificationService.init();
+  await NotificationService.requestPermission();
   await ConfigService.init();
 
   final baseUrl = await ConfigService.getBaseUrl();

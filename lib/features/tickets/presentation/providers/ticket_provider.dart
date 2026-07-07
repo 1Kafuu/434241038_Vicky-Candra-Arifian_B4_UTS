@@ -47,10 +47,43 @@ class TicketListNotifier extends AsyncNotifier<List<TicketEntity>> {
   }
 
   Future<void> refresh() async {
-    state = const AsyncLoading(); // Set status ke loading saat refresh
+    state = const AsyncLoading();
+    ref.read(ticketPageProvider.notifier).reset();
+    ref.read(ticketHasMoreProvider.notifier).reset();
     state = await AsyncValue.guard(() {
       return ref.read(ticketRepositoryProvider).getTickets();
     });
+  }
+
+  Future<void> loadMore() async {
+    if (!ref.read(ticketHasMoreProvider)) return;
+    if (ref.read(ticketIsLoadingMoreProvider)) return;
+
+    ref.read(ticketIsLoadingMoreProvider.notifier).setLoading(true);
+
+    final nextPage = ref.read(ticketPageProvider) + 1;
+    final tickets = await ref.read(ticketRepositoryProvider).getTickets();
+    const pageSize = 20;
+    final start = nextPage * pageSize;
+    final end = (nextPage + 1) * pageSize;
+
+    if (start >= tickets.length) {
+      ref.read(ticketHasMoreProvider.notifier).setHasMore(false);
+      ref.read(ticketIsLoadingMoreProvider.notifier).setLoading(false);
+      return;
+    }
+
+    final pageTickets = tickets.sublist(
+      start,
+      end > tickets.length ? tickets.length : end,
+    );
+
+    final currentTickets = state.maybeWhen(data: (v) => v, orElse: () => <TicketEntity>[]);
+    state = AsyncValue.data([...currentTickets, ...pageTickets]);
+
+    ref.read(ticketPageProvider.notifier).setPage(nextPage);
+    ref.read(ticketHasMoreProvider.notifier).setHasMore(end < tickets.length);
+    ref.read(ticketIsLoadingMoreProvider.notifier).setLoading(false);
   }
 
   Future<void> addTicket(TicketEntity ticket) async {
@@ -243,6 +276,29 @@ final ticketListProvider =
     AsyncNotifierProvider<TicketListNotifier, List<TicketEntity>>(() {
       return TicketListNotifier();
     });
+
+final ticketPageProvider = NotifierProvider<TicketPageNotifier, int>(() => TicketPageNotifier());
+class TicketPageNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+  void setPage(int page) => state = page;
+  void reset() => state = 0;
+}
+
+final ticketHasMoreProvider = NotifierProvider<TicketHasMoreNotifier, bool>(() => TicketHasMoreNotifier());
+class TicketHasMoreNotifier extends Notifier<bool> {
+  @override
+  bool build() => true;
+  void setHasMore(bool value) => state = value;
+  void reset() => state = true;
+}
+
+final ticketIsLoadingMoreProvider = NotifierProvider<TicketIsLoadingMoreNotifier, bool>(() => TicketIsLoadingMoreNotifier());
+class TicketIsLoadingMoreNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+  void setLoading(bool value) => state = value;
+}
 
 final ticketStatsProvider = Provider<Map<String, int>>((ref) {
   final ticketsAsync = ref.watch(ticketListProvider);

@@ -54,7 +54,7 @@ export interface CreateTicketRequest {
 
 // Request body for PUT /api/tickets/:id/status
 export interface UpdateStatusRequest {
-  status: TicketStatus.in_progress | TicketStatus.pending | TicketStatus.open;
+  status: TicketStatus.in_progress | TicketStatus.pending | TicketStatus.open | TicketStatus.resolved;
 }
 
 // Request body for POST /api/tickets/:id/assign

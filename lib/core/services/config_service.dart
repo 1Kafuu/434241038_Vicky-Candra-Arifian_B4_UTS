@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ConfigService {
   static const String _baseUrlKey = 'backend_base_url';
-  static const String _defaultLocalUrl = 'http://10.185.24.116:3000';
+  static const String _defaultLocalUrl = 'http://192.168.1.23:3000';
 
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();

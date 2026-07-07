@@ -1,5 +1,5 @@
 class ApiConstants {
-  static String _baseUrl = 'http://10.185.24.116:3000/api';
+  static String _baseUrl = 'http://192.168.1.23:3000/api';
 
   static String get baseUrl => _baseUrl;
 
