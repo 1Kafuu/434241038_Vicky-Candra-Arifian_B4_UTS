@@ -36,11 +36,19 @@ app.use('/api/admin', userRoutes);
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
+const getBaseUrl = () => {
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  return process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
+};
+
 app.get('/api/config', (_req, res) => {
-  res.json({ baseUrl: process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 3000}` });
+  res.json({ baseUrl: getBaseUrl() });
 });
 
-app.use('/api', attachmentRoutes);
+// TEMPORARILY DISABLED FOR VERCEL DEPLOY (upload feature needs fix)
+// app.use('/api', attachmentRoutes);
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 
