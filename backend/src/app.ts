@@ -47,7 +47,8 @@ app.get('/api/config', (_req, res) => {
   res.json({ baseUrl: getBaseUrl() });
 });
 
-app.use('/api', attachmentRoutes);
+// TEMPORARILY DISABLED FOR VERCEL DEPLOY (upload feature needs fix)
+// app.use('/api', attachmentRoutes);
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 
