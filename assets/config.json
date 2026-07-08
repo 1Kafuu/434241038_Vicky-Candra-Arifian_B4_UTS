@@ -1,0 +1,10 @@
+{
+  "app_name": "E-Ticketing",
+  "version": "1.0.0",
+  "support_email": "support@eticketing.com",
+  "features": {
+    "notifications": true,
+    "dark_mode": true,
+    "analytics": false
+  }
+}

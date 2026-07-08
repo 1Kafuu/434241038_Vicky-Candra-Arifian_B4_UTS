@@ -53,6 +53,7 @@ AUTH_MODULE.md
 .code-review-graph/
 docs/
 graphify-out/
+.firecrawl/
 
 # Backend (Node.js)
 backend/.env

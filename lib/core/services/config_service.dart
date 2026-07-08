@@ -1,17 +1,42 @@
 import 'dart:convert';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ConfigService {
   static const String _baseUrlKey = 'backend_base_url';
-  static const String _defaultLocalUrl = 'http://192.168.1.23:3000';
+  static const String _defaultLocalUrl = 'https://flutter-backend-production-8ad5.up.railway.app';
+
+  static Map<String, dynamic>? _appConfig;
 
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     if (!prefs.containsKey(_baseUrlKey)) {
       await prefs.setString(_baseUrlKey, _defaultLocalUrl);
+    } else {
+      final stored = prefs.getString(_baseUrlKey);
+      if (stored == null || stored.contains('192.168') || stored.contains('localhost')) {
+        await prefs.setString(_baseUrlKey, _defaultLocalUrl);
+      }
+    }
+    await _loadAppConfig();
+  }
+
+  static Future<void> _loadAppConfig() async {
+    try {
+      final jsonString = await rootBundle.loadString('assets/config.json');
+      _appConfig = json.decode(jsonString);
+    } catch (e) {
+      _appConfig = null;
     }
   }
+
+  static Map<String, dynamic>? get appConfig => _appConfig;
+
+  static String get appName => _appConfig?['app_name'] ?? 'E-Ticketing';
+  static String get supportEmail => _appConfig?['support_email'] ?? '';
+  static bool get notificationsEnabled => _appConfig?['features']?['notifications'] ?? true;
+  static bool get darkModeEnabled => _appConfig?['features']?['dark_mode'] ?? false;
 
   static Future<String> getBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();
